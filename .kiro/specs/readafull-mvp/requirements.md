@@ -70,7 +70,18 @@ Readafull is a mobile application designed to improve English speaking skills th
 3. WHEN text-to-speech is active THEN the system SHALL provide playback controls (play, pause, stop, replay)
 4. WHEN text-to-speech fails THEN the system SHALL display an error message and allow retry
 
-### Requirement 7: Mobile Application Interface
+### Requirement 7: Social Authentication
+
+**User Story:** As a mobile user, I want to sign in quickly using my existing social media accounts, so that I can start practicing without creating new credentials.
+
+#### Acceptance Criteria
+
+1. WHEN a user opens the app for the first time THEN the system SHALL display social login options (Google, Facebook, Apple)
+2. WHEN a user selects a social login provider THEN the system SHALL redirect to the provider's authentication flow
+3. WHEN social authentication is successful THEN the system SHALL create a user profile and redirect to the main practice screen
+4. WHEN social authentication fails THEN the system SHALL display an appropriate error message and allow retry
+
+### Requirement 8: Mobile Application Interface
 
 **User Story:** As a mobile user, I want an intuitive and responsive mobile interface, so that I can easily access all reading practice features on my mobile device.
 
@@ -81,7 +92,7 @@ Readafull is a mobile application designed to improve English speaking skills th
 3. WHEN the app is used in portrait or landscape mode THEN the system SHALL adapt the layout appropriately
 4. WHEN the app is backgrounded and resumed THEN the system SHALL maintain the current session state
 
-### Requirement 8: Content Management
+### Requirement 9: Content Management
 
 **User Story:** As an English learner, I want to manage my reading materials and practice sessions, so that I can organize my learning progress effectively.
 

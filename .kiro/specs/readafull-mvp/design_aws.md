@@ -345,18 +345,24 @@ export const handler = async (event: APIGatewayProxyEvent) => {
   }
 };
 
-// Lambda: post-confirmation-trigger (Cognito Trigger)
+// Lambda: post-confirmation-trigger (Cognito Trigger for Social Login)
 export const postConfirmationHandler = async (event: CognitoUserPoolTriggerEvent) => {
   const userId = event.request.userAttributes.sub;
   const email = event.request.userAttributes.email;
+  const name = event.request.userAttributes.name || event.request.userAttributes.given_name;
+  const profilePicture = event.request.userAttributes.picture;
+  const provider = event.request.userAttributes['custom:provider'] || 'unknown';
 
   try {
-    // Create user profile in DynamoDB
+    // Create user profile in DynamoDB for social login user
     await dynamoService.createUserProfile({
       PK: `USER#${userId}`,
       SK: 'PROFILE#main',
       userId,
-      email,
+      email: email || null,
+      name: name || 'User',
+      profilePicture: profilePicture || null,
+      provider,
       preferences: {
         defaultDifficulty: 'beginner',
         showTranslationByDefault: true,
@@ -370,6 +376,24 @@ export const postConfirmationHandler = async (event: CognitoUserPoolTriggerEvent
     return event;
   } catch (error) {
     console.error('Post-confirmation trigger error:', error);
+    throw error;
+  }
+};
+
+// Lambda: pre-token-generation-trigger (Add custom claims)
+export const preTokenGenerationHandler = async (event: CognitoUserPoolTriggerEvent) => {
+  try {
+    // Add custom claims to the token
+    event.response.claimsOverrideDetails = {
+      claimsToAddOrOverride: {
+        'custom:provider': event.request.userAttributes['custom:provider'] || 'unknown',
+        'custom:difficulty_preference': event.request.userAttributes['custom:difficulty_preference'] || 'beginner'
+      }
+    };
+
+    return event;
+  } catch (error) {
+    console.error('Pre-token generation trigger error:', error);
     throw error;
   }
 };
@@ -401,23 +425,14 @@ interface MainTableItem {
 
 ### Amazon Cognito Integration
 
-#### User Pool Configuration
+#### User Pool Configuration with Social Login
 
 ```typescript
 const userPoolConfig = {
   UserPoolName: 'readafull-users',
-  Policies: {
-    PasswordPolicy: {
-      MinimumLength: 8,
-      RequireUppercase: true,
-      RequireLowercase: true,
-      RequireNumbers: true,
-      RequireSymbols: false
-    }
-  },
+  // No password policy needed for social login
   AutoVerifiedAttributes: ['email'],
   UsernameAttributes: ['email'],
-  MfaConfiguration: 'OPTIONAL',
   Schema: [
     {
       Name: 'preferred_language',
@@ -428,72 +443,194 @@ const userPoolConfig = {
       Name: 'difficulty_preference',
       AttributeDataType: 'String',
       Mutable: true
+    },
+    {
+      Name: 'provider',
+      AttributeDataType: 'String',
+      Mutable: false
+    },
+    {
+      Name: 'profile_picture',
+      AttributeDataType: 'String',
+      Mutable: true
     }
   ]
 };
+
+// Identity Providers Configuration
+const identityProviders = {
+  Google: {
+    ProviderName: 'Google',
+    ProviderType: 'Google',
+    ProviderDetails: {
+      client_id: process.env.GOOGLE_CLIENT_ID,
+      client_secret: process.env.GOOGLE_CLIENT_SECRET,
+      authorize_scopes: 'email profile openid'
+    },
+    AttributeMapping: {
+      email: 'email',
+      name: 'name',
+      picture: 'picture',
+      username: 'sub'
+    }
+  },
+  Facebook: {
+    ProviderName: 'Facebook',
+    ProviderType: 'Facebook',
+    ProviderDetails: {
+      client_id: process.env.FACEBOOK_APP_ID,
+      client_secret: process.env.FACEBOOK_APP_SECRET,
+      authorize_scopes: 'email,public_profile'
+    },
+    AttributeMapping: {
+      email: 'email',
+      name: 'name',
+      picture: 'picture',
+      username: 'id'
+    }
+  },
+  Apple: {
+    ProviderName: 'SignInWithApple',
+    ProviderType: 'SignInWithApple',
+    ProviderDetails: {
+      client_id: process.env.APPLE_CLIENT_ID,
+      team_id: process.env.APPLE_TEAM_ID,
+      key_id: process.env.APPLE_KEY_ID,
+      private_key: process.env.APPLE_PRIVATE_KEY,
+      authorize_scopes: 'email name'
+    },
+    AttributeMapping: {
+      email: 'email',
+      name: 'name',
+      username: 'sub'
+    }
+  }
+};
 ```
 
-#### Authentication Service Implementation
+#### Social Authentication Service Implementation
 
 ```typescript
-interface CognitoAuthService {
-  signUp(email: string, password: string, attributes?: UserAttributes): Promise<SignUpResult>
-  confirmSignUp(email: string, confirmationCode: string): Promise<void>
-  signIn(email: string, password: string): Promise<AuthenticationResult>
+interface SocialAuthService {
+  signInWithGoogle(): Promise<AuthenticationResult>
+  signInWithFacebook(): Promise<AuthenticationResult>
+  signInWithApple(): Promise<AuthenticationResult>
   signOut(): Promise<void>
   getCurrentUser(): Promise<CognitoUser | null>
-  forgotPassword(email: string): Promise<void>
-  confirmPassword(email: string, confirmationCode: string, newPassword: string): Promise<void>
   refreshSession(): Promise<CognitoUserSession>
 }
 
-// Mobile App Integration with AWS Amplify
+// Mobile App Integration with AWS Amplify and Social Providers
 import { Auth } from 'aws-amplify';
+import { GoogleSignin } from '@react-native-google-signin/google-signin';
+import { LoginManager, AccessToken } from 'react-native-fbsdk-next';
+import { appleAuth } from '@invertase/react-native-apple-authentication';
 
-class AuthenticationService implements CognitoAuthService {
-  async signUp(email: string, password: string, attributes?: UserAttributes): Promise<SignUpResult> {
+class SocialAuthenticationService implements SocialAuthService {
+  async signInWithGoogle(): Promise<AuthenticationResult> {
     try {
-      const result = await Auth.signUp({
-        username: email,
-        password,
-        attributes: {
-          email,
-          preferred_username: email,
-          ...attributes
-        }
-      });
-      return result;
-    } catch (error) {
-      throw this.handleAuthError(error);
-    }
-  }
+      // Configure Google Sign-In
+      await GoogleSignin.hasPlayServices();
+      const userInfo = await GoogleSignin.signIn();
 
-  async signIn(email: string, password: string): Promise<AuthenticationResult> {
-    try {
-      const user = await Auth.signIn(email, password);
+      // Sign in to Cognito with Google token
+      const cognitoUser = await Auth.federatedSignIn(
+        'google',
+        { token: userInfo.idToken },
+        userInfo.user
+      );
+
       const session = await Auth.currentSession();
       return {
-        user,
+        user: cognitoUser,
         accessToken: session.getAccessToken().getJwtToken(),
         idToken: session.getIdToken().getJwtToken(),
-        refreshToken: session.getRefreshToken().getToken()
+        refreshToken: session.getRefreshToken().getToken(),
+        provider: 'google'
       };
     } catch (error) {
-      throw this.handleAuthError(error);
+      throw this.handleSocialAuthError(error, 'google');
     }
   }
 
-  private handleAuthError(error: any): AuthError {
-    switch (error.code) {
-      case 'UserNotConfirmedException':
-        return new AuthError('Please verify your email address', 'EMAIL_NOT_VERIFIED');
-      case 'NotAuthorizedException':
-        return new AuthError('Invalid email or password', 'INVALID_CREDENTIALS');
-      case 'UserNotFoundException':
-        return new AuthError('User not found', 'USER_NOT_FOUND');
-      default:
-        return new AuthError('Authentication failed', 'UNKNOWN_ERROR');
+  async signInWithFacebook(): Promise<AuthenticationResult> {
+    try {
+      const result = await LoginManager.logInWithPermissions(['public_profile', 'email']);
+
+      if (result.isCancelled) {
+        throw new Error('Facebook login was cancelled');
+      }
+
+      const data = await AccessToken.getCurrentAccessToken();
+      if (!data) {
+        throw new Error('Failed to get Facebook access token');
+      }
+
+      // Sign in to Cognito with Facebook token
+      const cognitoUser = await Auth.federatedSignIn(
+        'facebook',
+        { token: data.accessToken },
+        {}
+      );
+
+      const session = await Auth.currentSession();
+      return {
+        user: cognitoUser,
+        accessToken: session.getAccessToken().getJwtToken(),
+        idToken: session.getIdToken().getJwtToken(),
+        refreshToken: session.getRefreshToken().getToken(),
+        provider: 'facebook'
+      };
+    } catch (error) {
+      throw this.handleSocialAuthError(error, 'facebook');
     }
+  }
+
+  async signInWithApple(): Promise<AuthenticationResult> {
+    try {
+      const appleAuthRequestResponse = await appleAuth.performRequest({
+        requestedOperation: appleAuth.Operation.LOGIN,
+        requestedScopes: [appleAuth.Scope.EMAIL, appleAuth.Scope.FULL_NAME],
+      });
+
+      const { identityToken, nonce } = appleAuthRequestResponse;
+
+      if (!identityToken) {
+        throw new Error('Apple Sign-In failed - no identity token');
+      }
+
+      // Sign in to Cognito with Apple token
+      const cognitoUser = await Auth.federatedSignIn(
+        'apple',
+        { token: identityToken },
+        { nonce }
+      );
+
+      const session = await Auth.currentSession();
+      return {
+        user: cognitoUser,
+        accessToken: session.getAccessToken().getJwtToken(),
+        idToken: session.getIdToken().getJwtToken(),
+        refreshToken: session.getRefreshToken().getToken(),
+        provider: 'apple'
+      };
+    } catch (error) {
+      throw this.handleSocialAuthError(error, 'apple');
+    }
+  }
+
+  private handleSocialAuthError(error: any, provider: string): AuthError {
+    console.error(`${provider} authentication error:`, error);
+
+    if (error.code === 'UserCancel' || error.message?.includes('cancelled')) {
+      return new AuthError(`${provider} sign-in was cancelled`, 'USER_CANCELLED');
+    }
+
+    if (error.code === 'NetworkError') {
+      return new AuthError('Network error during sign-in', 'NETWORK_ERROR');
+    }
+
+    return new AuthError(`${provider} sign-in failed`, 'SOCIAL_AUTH_ERROR');
   }
 }
 ```

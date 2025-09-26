@@ -40,7 +40,8 @@ graph TB
 
 - **Frontend Framework**: React Native (cross-platform mobile development)
 - **State Management**: React Context API or Redux Toolkit
-- **Authentication**: Firebase Auth or Auth0 for user management
+- **Authentication**: Firebase Auth or Auth0 with social login providers (Google, Facebook, Apple)
+- **Social Login Libraries**: @react-native-google-signin/google-signin, react-native-fbsdk-next, @invertase/react-native-apple-authentication
 - **Audio Processing**: react-native-audio-recorder-player
 - **AI Services**: OpenAI API or similar for text generation, translation, and TTS
 - **Storage**: AsyncStorage for local data persistence, Cloud storage for user data sync
@@ -91,11 +92,11 @@ interface AudioRecording {
 
 ```typescript
 interface AuthenticationService {
-  signUp(email: string, password: string, preferences?: UserPreferences): Promise<AuthResult>
-  signIn(email: string, password: string): Promise<AuthResult>
+  signInWithGoogle(): Promise<AuthResult>
+  signInWithFacebook(): Promise<AuthResult>
+  signInWithApple(): Promise<AuthResult>
   signOut(): Promise<void>
   getCurrentUser(): Promise<User | null>
-  resetPassword(email: string): Promise<void>
   isAuthenticated(): boolean
   refreshToken(): Promise<string>
 }
@@ -104,11 +105,15 @@ interface AuthResult {
   user: User
   accessToken: string
   refreshToken: string
+  provider: 'google' | 'facebook' | 'apple'
 }
 
 interface User {
   id: string
-  email: string
+  email?: string
+  name: string
+  profilePicture?: string
+  provider: 'google' | 'facebook' | 'apple'
   preferences: UserPreferences
   createdAt: Date
   lastLoginAt: Date
@@ -134,10 +139,10 @@ interface StorageService {
 
 #### 1. Authentication Screens
 
-- **Sign In Screen**: Email/password login, forgot password link, sign up navigation
-- **Sign Up Screen**: Email/password registration, terms acceptance, email verification
-- **Password Reset Screen**: Email input for password reset
-- **Email Verification Screen**: Confirmation code input
+- **Welcome Screen**: App introduction with social login options
+- **Social Login Screen**: Google, Facebook, and Apple sign-in buttons with terms acceptance
+- **Profile Setup Screen**: Initial preferences setup after first social login
+- **Permission Request Screen**: Microphone and notification permissions with explanations
 
 #### 2. Main Practice Screen
 

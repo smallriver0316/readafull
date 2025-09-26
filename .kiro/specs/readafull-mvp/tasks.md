@@ -6,11 +6,11 @@
   - Set up development, staging, and production environments
   - _Requirements: 7.1, 7.2, 7.3, 7.4_
 
-- [ ] 2. Implement Amazon Cognito authentication system
-  - Create Cognito User Pool with email-based authentication
-  - Configure password policies and user attributes for language preferences
-  - Implement Cognito triggers for post-confirmation user setup
-  - Write unit tests for authentication flows
+- [ ] 2. Implement Amazon Cognito social authentication system
+  - Create Cognito User Pool with social identity providers (Google, Facebook, Apple)
+  - Configure identity provider settings and attribute mappings
+  - Set up Cognito triggers for post-confirmation user profile creation
+  - Write unit tests for social authentication flows
   - _Requirements: 7.1, 7.2, 7.3, 7.4_
 
 - [ ] 3. Create DynamoDB data layer with single-table design
@@ -70,19 +70,26 @@
   - Configure development environment for iOS and Android
   - _Requirements: 7.1, 7.2, 7.3, 7.4_
 
-- [ ] 9. Implement mobile authentication UI and logic
-- [ ] 9.1 Create authentication screens
-  - Build Sign In screen with email/password input and validation
-  - Build Sign Up screen with email verification flow
-  - Build Password Reset screen with Cognito integration
-  - Implement proper form validation and error handling
+- [ ] 9. Implement mobile social authentication UI and logic
+- [ ] 9.1 Create social authentication screens
+  - Build Welcome screen with app introduction and social login options
+  - Build Social Login screen with Google, Facebook, and Apple sign-in buttons
+  - Build Profile Setup screen for initial preferences after first login
+  - Implement proper error handling and loading states for social authentication
   - _Requirements: 7.1, 7.2, 7.3, 7.4_
 
-- [ ] 9.2 Integrate Cognito authentication service
-  - Implement AuthenticationService class using AWS Amplify Auth
-  - Add authentication state management with React Context
-  - Implement automatic token refresh and session management
-  - Write unit tests for authentication service integration
+- [ ] 9.2 Integrate social login providers
+  - Install and configure Google Sign-In SDK (@react-native-google-signin/google-signin)
+  - Install and configure Facebook SDK (react-native-fbsdk-next)
+  - Install and configure Apple Authentication (@invertase/react-native-apple-authentication)
+  - Implement platform-specific configurations for iOS and Android
+  - _Requirements: 7.1, 7.2, 7.3, 7.4_
+
+- [ ] 9.3 Integrate Cognito social authentication service
+  - Implement SocialAuthenticationService class using AWS Amplify Auth with federated sign-in
+  - Add authentication state management with React Context for social providers
+  - Implement automatic token refresh and session management for social login
+  - Write unit tests for social authentication service integration
   - _Requirements: 7.1, 7.2, 7.3, 7.4_
 
 - [ ] 10. Build main practice screen functionality
@@ -116,10 +123,10 @@
 
 - [ ] 12. Implement settings and user profile screen
   - Build settings screen with audio quality and preference options
-  - Create user profile management with account information display
+  - Create user profile management displaying social login provider information and profile picture
   - Implement preference synchronization between mobile app and AWS
-  - Add sign out functionality with proper session cleanup
-  - _Requirements: 7.1, 7.2, 7.3, 7.4, 8.1, 8.2, 8.3, 8.4_
+  - Add sign out functionality with proper session cleanup for social providers
+  - _Requirements: 7.1, 7.2, 7.3, 7.4, 9.1, 9.2, 9.3, 9.4_
 
 - [ ] 13. Add comprehensive error handling and offline support
   - Implement network error handling with user-friendly messages
@@ -158,7 +165,7 @@
   - _Requirements: 1.1, 3.1, 5.1, 6.1, 7.1, 8.1_
 
 - [ ] 16.3 Write mobile app component tests
-  - Test authentication screens with React Native Testing Library
+  - Test social authentication screens and provider integration with React Native Testing Library
   - Test main practice screen components and user interactions
   - Test audio recording and playback functionality
   - Test error handling and offline mode behavior
