@@ -1,19 +1,23 @@
 ---
 name: code-review
-description: Reviews code in this project following security, performance, readability, and testability guidelines. Responds in Japanese when prompted in Japanese.
+description: Reviews code in this project following security, performance, readability, and testability guidelines. Use when user requests code review, PR review, or asks to check/review code changes. Responds in Japanese when prompted in Japanese, otherwise responds in English.
 ---
 
-## Perspectives for review
+# Code Review
 
-Follow these perspectives in review.
+## Instructions
+
+**Language**: Respond in Japanese if the user prompts in Japanese, otherwise respond in English.
+
+Review code with the following perspectives in mind.
 
 ### 1. Security
 
-Prevent security risks such as:
+Check for security risks:
 
-- SQL injection, XSS, CSRF
+- SQL injection, XSS, CSRF vulnerabilities
 - Credential leaks and authentication/authorization issues
-- Hard-coding of secrets (API keys, passwords, tokens)
+- Hard-coded secrets (API keys, passwords, tokens)
 - AWS-specific security issues:
   - IAM role/policy misconfigurations
   - S3 bucket public access
@@ -22,7 +26,7 @@ Prevent security risks such as:
 
 ### 2. Performance
 
-Avoid performance issues such as:
+Identify performance issues:
 
 - N+1 query problems
 - Unnecessary loops or redundant operations
@@ -34,54 +38,72 @@ Avoid performance issues such as:
 
 ### 3. Readability
 
-- Use clear, descriptive variable and function names
-- Avoid overly complex logic; break down into smaller functions
-- Add comments only when explaining "why", not "what"
-- Avoid magic numbers; use named constants
-- Follow consistent code formatting
-- Use appropriate abstractions
+Verify code readability:
+
+- Clear, descriptive variable and function names
+- Simple logic broken down into smaller functions
+- Comments explaining "why", not "what"
+- Named constants instead of magic numbers
+- Consistent code formatting
+- Appropriate abstractions
 
 ### 4. Testability
 
-- Keep test coverage for edge cases and error scenarios
-- Design with dependency injection for easier mocking
-- Avoid tight coupling to external services
-- Ensure functions have single responsibility
-- Make side effects explicit and testable
+Assess testability:
+
+- Test coverage for edge cases and error scenarios
+- Dependency injection for easier mocking
+- Loose coupling to external services
+- Functions with single responsibility
+- Explicit and testable side effects
 
 ### 5. Error Handling & Logging
 
-- Implement proper error handling for all failure scenarios
-- Provide meaningful error messages
-- Log appropriate information for debugging
-- Avoid exposing sensitive information in logs
-- Handle async errors properly
+Evaluate error handling:
+
+- Proper error handling for all failure scenarios
+- Meaningful error messages
+- Appropriate logging for debugging
+- No sensitive information in logs
+- Proper async error handling
 
 ### 6. Project-Specific Guidelines
 
-Check compliance with project guidelines:
+Verify compliance with project guidelines:
 
-- Follow patterns defined in [CLAUDE.md](../../../CLAUDE.md)
-- Adhere to architecture described in [.kiro/steering/structure.md](../../../.kiro/steering/structure.md)
-- Use technology stack appropriately (AWS, React Native, TypeScript)
-- Follow Git Workflow (branch naming, commit messages)
-- Ensure compatibility with project requirements in [.kiro/specs/readafull-mvp](../../../.kiro/specs/readafull-mvp)
+- Patterns defined in [CLAUDE.md](../../../CLAUDE.md)
+- Architecture described in [.kiro/steering/structure.md](../../../.kiro/steering/structure.md)
+- Technology stack usage (AWS, React Native, TypeScript)
+- Git Workflow (branch naming, commit messages)
+- Project requirements in [.kiro/specs/readafull-mvp](../../../.kiro/specs/readafull-mvp)
 
-## Output format
+## Output Format
+
+Structure the review as follows:
 
 **Critical Issues** (if any)
-- Security vulnerabilities or breaking bugs
-- Must be fixed before merging
+- Security vulnerabilities or breaking bugs that must be fixed before merging
 
 **Good Points**
 - Highlight well-written code and good practices
-- Use bullet points
 
 **Needs Improvement**
 - Points that should be improved for better quality
 - Include specific suggestions for how to improve
-- Use bullet points
 
 **Questions**
 - Items that need clarification or confirmation
 - Architecture decisions that may need discussion
+
+### Example Output
+
+**Good Points**
+- Clear error handling with specific error types
+- Well-structured component separation
+
+**Needs Improvement**
+- Line 45: API key should be moved to environment variables instead of being hard-coded
+- Lines 78-92: Consider extracting this logic into a separate utility function for better testability
+
+**Questions**
+- Should this API call include retry logic for network failures?
