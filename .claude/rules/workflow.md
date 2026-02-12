@@ -1,4 +1,4 @@
-# Workflow Rule
+# Development Workflow
 
 On the development process, we follow the steps written in [.kiro/specs/readafull-mvp/tasks.md](../../.kiro/specs/readafull-mvp/tasks.md).
 
@@ -32,11 +32,11 @@ This project follows a branch-based workflow:
 
 When assisting with this project:
 
-1. **Always read the relevant documentation first** - Use the Read tool to review the files mentioned above before making changes
+1. **Always read the relevant documentation first** - Use the Read tool to review the project documentation files referenced in CLAUDE.md before making changes
 2. **Use the Explore agent for codebase understanding** - When you need to understand the project structure or find specific implementations, use the Task tool with subagent_type=Explore
 3. **Plan before implementing** - For non-trivial features, use EnterPlanMode to design the approach and get user approval
 4. **Create a feature branch** - Before starting work on a task, create a new branch from `main` using the naming convention described in Git Workflow
-5. **Track your work** - Use TodoWrite to manage tasks and keep the user informed of progress
+5. **Track your work** - Use TaskCreate to manage tasks and keep the user informed of progress
 6. **Follow the existing patterns** - Review similar implementations in the codebase before adding new features
 7. **Test your changes** - Run relevant tests after making modifications
 8. **Keep commits focused** - When creating commits, ensure they are atomic and well-described
