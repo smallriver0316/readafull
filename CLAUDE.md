@@ -1,0 +1,20 @@
+# CLAUDE.md
+
+This file provides guidance to Claude Code when working with code in this repository.
+
+## Project Overview
+
+Readafull is a cloud-native mobile application designed to improve English speaking skills for Japanese learners through AI-powered reading practice and pronunciation support.
+
+The project details are written as documentation in [.kiro/specs/readafull-mvp](.kiro/specs/readafull-mvp) and [.kiro/steering](.kiro/steering).
+Especially for product's overview, refer to [.kiro/steering/product.md](.kiro/steering/product.md).
+For the technology stack, refer to [.kiro/steering/tech.md](.kiro/steering/tech.md).
+Those are based on [.kiro/specs/readafull-mvp/requirements.md](.kiro/specs/readafull-mvp/requirements.md).
+
+It is necessary to read these documents to understand this project before supporting the development.
+
+## Architecture Overview
+
+Refer to [.kiro/steering/structure.md](.kiro/steering/structure.md).
+
+For the details of the product design, refer to [.kiro/specs/readafull-mvp/design_aws.md](.kiro/specs/readafull-mvp/design_aws.md).
