@@ -38,7 +38,7 @@ if ! aws sts get-caller-identity > /dev/null 2>&1; then
 fi
 
 ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
-REGION=$(aws configure get region || echo "us-east-1")
+REGION=$(aws configure get region || echo "ap-northeast-1")
 
 echo "✓ AWS Account: $ACCOUNT_ID"
 echo "✓ AWS Region: $REGION"

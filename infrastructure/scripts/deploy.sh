@@ -24,7 +24,7 @@ fi
 echo ""
 echo "Checking CDK bootstrap status..."
 ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
-REGION=$(aws configure get region || echo "us-east-1")
+REGION=$(aws configure get region || echo "ap-northeast-1")
 
 echo "Account: $ACCOUNT_ID"
 echo "Region: $REGION"

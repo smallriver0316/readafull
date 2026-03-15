@@ -50,7 +50,7 @@ export const getEnvironmentConfig = (environment: string): EnvironmentConfig => 
 
   const configs: Record<string, EnvironmentConfig> = {
     development: {
-      region: 'us-east-1',
+      region: 'ap-northeast-1',
       environment: 'development',
       appName: 'readafull',
       stackPrefix: 'Readafull-Dev',
@@ -89,7 +89,7 @@ export const getEnvironmentConfig = (environment: string): EnvironmentConfig => 
     },
 
     staging: {
-      region: 'us-east-1',
+      region: 'ap-northeast-1',
       environment: 'staging',
       appName: 'readafull',
       stackPrefix: 'Readafull-Staging',
@@ -128,7 +128,7 @@ export const getEnvironmentConfig = (environment: string): EnvironmentConfig => 
     },
 
     production: {
-      region: 'us-east-1',
+      region: 'ap-northeast-1',
       environment: 'production',
       appName: 'readafull',
       stackPrefix: 'Readafull-Prod',
