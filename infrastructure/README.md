@@ -17,7 +17,7 @@ The infrastructure is organized into four main stacks:
 
 ## Prerequisites
 
-- Node.js 18 or later
+- Node.js 24 or later
 - AWS CLI configured with appropriate credentials
 - AWS CDK CLI (installed via npm)
 - An AWS account with sufficient permissions

@@ -11,13 +11,13 @@ echo "========================================"
 
 # Check if Node.js is installed
 if ! command -v node &> /dev/null; then
-    echo "Error: Node.js is not installed. Please install Node.js 18 or later."
+    echo "Error: Node.js is not installed. Please install Node.js 24 or later."
     exit 1
 fi
 
 NODE_VERSION=$(node -v | cut -d 'v' -f 2 | cut -d '.' -f 1)
-if [ "$NODE_VERSION" -lt 18 ]; then
-    echo "Error: Node.js version must be 18 or later. Current version: $(node -v)"
+if [ "$NODE_VERSION" -lt 24 ]; then
+    echo "Error: Node.js version must be 24 or later. Current version: $(node -v)"
     exit 1
 fi
 

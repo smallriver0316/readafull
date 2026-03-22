@@ -79,7 +79,7 @@ export const getEnvironmentConfig = (environment: string): EnvironmentConfig => 
       lambda: {
         memorySize: 512,
         timeout: 30,
-        runtime: 'nodejs18.x',
+        runtime: 'nodejs24.x',
       },
 
       monitoring: {
@@ -118,7 +118,7 @@ export const getEnvironmentConfig = (environment: string): EnvironmentConfig => 
       lambda: {
         memorySize: 1024,
         timeout: 60,
-        runtime: 'nodejs18.x',
+        runtime: 'nodejs24.x',
       },
 
       monitoring: {
@@ -157,7 +157,7 @@ export const getEnvironmentConfig = (environment: string): EnvironmentConfig => 
       lambda: {
         memorySize: 1024,
         timeout: 60,
-        runtime: 'nodejs18.x',
+        runtime: 'nodejs24.x',
       },
 
       monitoring: {

@@ -79,7 +79,7 @@ export class ApiStack extends cdk.Stack {
     // Text Generation Lambda
     this.textGenerationFunction = new lambda.Function(this, 'TextGenerationFunction', {
       functionName: `${config.stackPrefix}-text-generation`,
-      runtime: lambda.Runtime.NODEJS_18_X,
+      runtime: lambda.Runtime.NODEJS_24_X,
       handler: 'index.handler',
       code: lambda.Code.fromInline(`
         exports.handler = async (event) => {
@@ -99,7 +99,7 @@ export class ApiStack extends cdk.Stack {
     // Translation Lambda
     this.translationFunction = new lambda.Function(this, 'TranslationFunction', {
       functionName: `${config.stackPrefix}-translation`,
-      runtime: lambda.Runtime.NODEJS_18_X,
+      runtime: lambda.Runtime.NODEJS_24_X,
       handler: 'index.handler',
       code: lambda.Code.fromInline(`
         exports.handler = async (event) => {
@@ -119,7 +119,7 @@ export class ApiStack extends cdk.Stack {
     // TTS Generation Lambda
     this.ttsGenerationFunction = new lambda.Function(this, 'TtsGenerationFunction', {
       functionName: `${config.stackPrefix}-tts-generation`,
-      runtime: lambda.Runtime.NODEJS_18_X,
+      runtime: lambda.Runtime.NODEJS_24_X,
       handler: 'index.handler',
       code: lambda.Code.fromInline(`
         exports.handler = async (event) => {
@@ -139,7 +139,7 @@ export class ApiStack extends cdk.Stack {
     // Audio Processing Lambda
     this.audioProcessingFunction = new lambda.Function(this, 'AudioProcessingFunction', {
       functionName: `${config.stackPrefix}-audio-processing`,
-      runtime: lambda.Runtime.NODEJS_18_X,
+      runtime: lambda.Runtime.NODEJS_24_X,
       handler: 'index.handler',
       code: lambda.Code.fromInline(`
         exports.handler = async (event) => {
@@ -159,7 +159,7 @@ export class ApiStack extends cdk.Stack {
     // User Profile Lambda
     this.userProfileFunction = new lambda.Function(this, 'UserProfileFunction', {
       functionName: `${config.stackPrefix}-user-profile`,
-      runtime: lambda.Runtime.NODEJS_18_X,
+      runtime: lambda.Runtime.NODEJS_24_X,
       handler: 'index.handler',
       code: lambda.Code.fromInline(`
         exports.handler = async (event) => {

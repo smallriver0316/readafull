@@ -800,7 +800,7 @@ export class ReadafullStack extends cdk.Stack {
 
     // Lambda Functions
     const textGenerationFunction = new lambda.Function(this, 'TextGeneration', {
-      runtime: lambda.Runtime.NODEJS_18_X,
+      runtime: lambda.Runtime.NODEJS_24_X,
       handler: 'index.handler',
       code: lambda.Code.fromAsset('lambda/text-generation')
     });
