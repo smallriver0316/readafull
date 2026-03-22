@@ -33,6 +33,17 @@ export class ApiStack extends cdk.Stack {
 
     const { userPool, mainTable, audioBucket } = apiProps;
 
+    // Create IAM role for API Gateway to push logs to CloudWatch (account-level setting)
+    const apiGatewayCloudWatchRole = new iam.Role(this, 'ApiGatewayCloudWatchRole', {
+      assumedBy: new iam.ServicePrincipal('apigateway.amazonaws.com'),
+      managedPolicies: [
+        iam.ManagedPolicy.fromAwsManagedPolicyName('service-role/AmazonAPIGatewayPushToCloudWatchLogs'),
+      ],
+    });
+    const cfnAccount = new apigateway.CfnAccount(this, 'ApiGatewayAccount', {
+      cloudWatchRoleArn: apiGatewayCloudWatchRole.roleArn,
+    });
+
     // Create API Gateway
     this.api = new apigateway.RestApi(this, 'ReadafullApi', {
       restApiName: `${config.appName}-api-${config.environment}`,
@@ -45,6 +56,7 @@ export class ApiStack extends cdk.Stack {
         loggingLevel: apigateway.MethodLoggingLevel.INFO,
         dataTraceEnabled: true,
       },
+      cloudWatchRole: false,
       defaultCorsPreflightOptions: {
         allowOrigins: apigateway.Cors.ALL_ORIGINS,
         allowMethods: apigateway.Cors.ALL_METHODS,
@@ -58,6 +70,8 @@ export class ApiStack extends cdk.Stack {
         allowCredentials: true,
       },
     });
+
+    this.api.node.addDependency(cfnAccount);
 
     // Create Cognito Authorizer
     const authorizer = new apigateway.CognitoUserPoolsAuthorizer(this, 'CognitoAuthorizer', {

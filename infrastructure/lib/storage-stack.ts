@@ -57,12 +57,12 @@ export class StorageStack extends cdk.Stack {
           id: 'DeleteOldAudioFiles',
           enabled: true,
           expiration: cdk.Duration.days(config.s3.lifecycleDays),
-          transitions: [
+          transitions: config.s3.lifecycleDays > 30 ? [
             {
               storageClass: s3.StorageClass.INTELLIGENT_TIERING,
               transitionAfter: cdk.Duration.days(30),
             },
-          ],
+          ] : [],
         },
       ],
       cors: [

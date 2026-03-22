@@ -50,6 +50,12 @@ Or using the deployment script:
 ./scripts/deploy.sh development
 ```
 
+Add `-y` to skip the confirmation prompt (useful for CI/CD):
+
+```bash
+./scripts/deploy.sh development -y
+```
+
 ### Staging Environment
 
 ```bash
@@ -60,6 +66,12 @@ Or:
 
 ```bash
 ./scripts/deploy.sh staging
+```
+
+Add `-y` to skip the confirmation prompt (useful for CI/CD):
+
+```bash
+./scripts/deploy.sh staging -y
 ```
 
 ### Production Environment

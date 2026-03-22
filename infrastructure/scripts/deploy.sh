@@ -1,13 +1,20 @@
 #!/bin/bash
 
 # Deployment script for Readafull infrastructure
-# Usage: ./deploy.sh [environment]
+# Usage: ./deploy.sh [environment] [-y]
 # Example: ./deploy.sh development
+#          ./deploy.sh development -y  (skip confirmation)
 
 set -e
 
-# Get environment argument or default to development
+# Parse arguments
+AUTO_APPROVE=false
 ENVIRONMENT=${1:-development}
+for arg in "$@"; do
+  if [ "$arg" = "-y" ]; then
+    AUTO_APPROVE=true
+  fi
+done
 
 echo "========================================"
 echo "Deploying Readafull Infrastructure"
@@ -53,11 +60,14 @@ npm run cdk:diff -- --context environment=$ENVIRONMENT || true
 
 # Ask for confirmation
 echo ""
-read -p "Do you want to proceed with deployment? (yes/no): " CONFIRM
-
-if [ "$CONFIRM" != "yes" ]; then
-    echo "Deployment cancelled."
-    exit 0
+if [ "$AUTO_APPROVE" = "true" ]; then
+    echo "Auto-approving deployment (-y flag provided)."
+else
+    read -p "Do you want to proceed with deployment? (yes/no): " CONFIRM
+    if [ "$CONFIRM" != "yes" ]; then
+        echo "Deployment cancelled."
+        exit 0
+    fi
 fi
 
 # Deploy all stacks

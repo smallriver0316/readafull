@@ -41,7 +41,7 @@ export class AuthStack extends cdk.Stack {
       },
       customAttributes: {
         provider: new cognito.StringAttribute({ mutable: false }),
-        difficulty_preference: new cognito.StringAttribute({ mutable: true }),
+        difficulty_pref: new cognito.StringAttribute({ mutable: true }),
         preferred_language: new cognito.StringAttribute({ mutable: true }),
       },
       passwordPolicy: {
@@ -82,9 +82,8 @@ export class AuthStack extends cdk.Stack {
       },
       supportedIdentityProviders: [
         cognito.UserPoolClientIdentityProvider.COGNITO,
-        cognito.UserPoolClientIdentityProvider.GOOGLE,
-        cognito.UserPoolClientIdentityProvider.FACEBOOK,
-        cognito.UserPoolClientIdentityProvider.APPLE,
+        // Google, Facebook, Apple providers must be configured in AWS Console
+        // with their respective client IDs/secrets before adding here
       ],
     });
 
