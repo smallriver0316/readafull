@@ -1,0 +1,40 @@
+{
+  "name": "readafull",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Readafull - AI-powered English speaking practice mobile app",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/yourusername/readafull.git"
+  },
+  "license": "MIT",
+  "workspaces": [
+    "infrastructure",
+    "mobile"
+  ],
+  "scripts": {
+    "cdk:deploy": "cd infrastructure && npm run cdk:deploy",
+    "cdk:deploy:dev": "cd infrastructure && npm run cdk:deploy:dev",
+    "cdk:deploy:staging": "cd infrastructure && npm run cdk:deploy:staging",
+    "cdk:deploy:prod": "cd infrastructure && npm run cdk:deploy:prod",
+    "cdk:destroy": "cd infrastructure && npm run cdk:destroy",
+    "cdk:diff": "cd infrastructure && npm run cdk:diff",
+    "cdk:synth": "cd infrastructure && npm run cdk:synth",
+    "infra:setup": "cd infrastructure && ./scripts/setup.sh",
+    "infra:build": "cd infrastructure && npm run build",
+    "infra:test": "cd infrastructure && npm test",
+    "mobile:start": "cd mobile && npm run start",
+    "mobile:ios": "cd mobile && npm run ios",
+    "mobile:android": "cd mobile && npm run android",
+    "mobile:test": "cd mobile && npm test",
+    "lint": "eslint . --ext .ts,.tsx",
+    "test": "npm run infra:test && npm run mobile:test",
+    "clean": "rm -rf node_modules infrastructure/node_modules mobile/node_modules infrastructure/cdk.out"
+  },
+  "devDependencies": {
+    "@typescript-eslint/eslint-plugin": "^6.21.0",
+    "@typescript-eslint/parser": "^6.21.0",
+    "eslint": "^8.56.0",
+    "typescript": "^5.3.3"
+  }
+}
