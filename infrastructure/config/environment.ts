@@ -41,12 +41,30 @@ export interface EnvironmentConfig {
   monitoring: {
     enableXRay: boolean;
     logRetentionDays: number;
-    alarmEmail?: string;
+    slack?: {
+      workspaceId: string;
+      channelId: string;
+    };
   };
 }
 
 export const getEnvironmentConfig = (environment: string): EnvironmentConfig => {
   const env = environment || 'development';
+
+  const slackWorkspaceId = process.env.SLACK_WORKSPACE_ID;
+  const slackChannelIdByEnv: Record<string, string | undefined> = {
+    development: process.env.SLACK_CHANNEL_ID_DEV,
+    staging: process.env.SLACK_CHANNEL_ID_STAGING,
+    production: process.env.SLACK_CHANNEL_ID_PROD,
+  };
+
+  const buildSlackConfig = (envName: string) => {
+    const channelId = slackChannelIdByEnv[envName];
+    if (slackWorkspaceId && channelId) {
+      return { workspaceId: slackWorkspaceId, channelId };
+    }
+    return undefined;
+  };
 
   const configs: Record<string, EnvironmentConfig> = {
     development: {
@@ -85,6 +103,7 @@ export const getEnvironmentConfig = (environment: string): EnvironmentConfig => 
       monitoring: {
         enableXRay: true,
         logRetentionDays: 7,
+        slack: buildSlackConfig('development'),
       },
     },
 
@@ -124,6 +143,7 @@ export const getEnvironmentConfig = (environment: string): EnvironmentConfig => 
       monitoring: {
         enableXRay: true,
         logRetentionDays: 14,
+        slack: buildSlackConfig('staging'),
       },
     },
 
@@ -163,7 +183,7 @@ export const getEnvironmentConfig = (environment: string): EnvironmentConfig => 
       monitoring: {
         enableXRay: true,
         logRetentionDays: 30,
-        alarmEmail: 'alerts@readafull.com',
+        slack: buildSlackConfig('production'),
       },
     },
   };
