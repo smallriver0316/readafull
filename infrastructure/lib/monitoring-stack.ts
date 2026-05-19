@@ -2,7 +2,7 @@ import * as cdk from 'aws-cdk-lib';
 import * as cloudwatch from 'aws-cdk-lib/aws-cloudwatch';
 import * as cloudwatch_actions from 'aws-cdk-lib/aws-cloudwatch-actions';
 import * as sns from 'aws-cdk-lib/aws-sns';
-import * as sns_subscriptions from 'aws-cdk-lib/aws-sns-subscriptions';
+import * as chatbot from 'aws-cdk-lib/aws-chatbot';
 import * as lambda from 'aws-cdk-lib/aws-lambda';
 import * as logs from 'aws-cdk-lib/aws-logs';
 import { Construct } from 'constructs';
@@ -33,11 +33,14 @@ export class MonitoringStack extends cdk.Stack {
       displayName: `Readafull ${config.environment} Alarms`,
     });
 
-    // Subscribe email to alarm topic if provided
-    if (config.monitoring.alarmEmail) {
-      this.alarmTopic.addSubscription(
-        new sns_subscriptions.EmailSubscription(config.monitoring.alarmEmail)
-      );
+    // Route alarms to Slack via AWS Chatbot if configured
+    if (config.monitoring.slack) {
+      new chatbot.SlackChannelConfiguration(this, 'SlackChannel', {
+        slackChannelConfigurationName: `${config.stackPrefix}-slack-alerts`,
+        slackWorkspaceId: config.monitoring.slack.workspaceId,
+        slackChannelId: config.monitoring.slack.channelId,
+        notificationTopics: [this.alarmTopic],
+      });
     }
 
     // Create CloudWatch Dashboard
