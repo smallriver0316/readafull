@@ -26,21 +26,25 @@ const stackProps: cdk.StackProps = {
   },
 };
 
-// Create Auth Stack
-const authStack = new AuthStack(
-  app,
-  `${config.stackPrefix}-Auth`,
-  config,
-  stackProps
-);
-
-// Create Storage Stack
+// Create Storage Stack first — Auth and API stacks both depend on it.
 const storageStack = new StorageStack(
   app,
   `${config.stackPrefix}-Storage`,
   config,
   stackProps
 );
+
+// Create Auth Stack (depends on Storage for the post-confirmation trigger)
+const authStack = new AuthStack(
+  app,
+  `${config.stackPrefix}-Auth`,
+  config,
+  {
+    mainTable: storageStack.mainTable,
+  },
+  stackProps
+);
+authStack.addDependency(storageStack);
 
 // Create API Stack (depends on Auth and Storage)
 const apiStack = new ApiStack(

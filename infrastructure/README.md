@@ -149,13 +149,54 @@ infrastructure/
 
 ## Social Login Configuration
 
-After deploying the Auth Stack, you need to manually configure social identity providers in the Cognito User Pool:
+Social identity providers (Google, Facebook, Apple) are managed by CDK using credentials stored in AWS Systems Manager Parameter Store. The synthesized CloudFormation template only contains dynamic references (`{{resolve:ssm-secure:...}}`), so secret values never leave Parameter Store.
 
-1. Google: Add Google OAuth client ID and secret
-2. Facebook: Add Facebook App ID and secret
-3. Apple: Add Apple Sign In credentials
+### 1. Store credentials in SSM Parameter Store
 
-These cannot be added via CDK due to security best practices (credentials should not be in code).
+For each environment (`development` / `staging` / `production`), register the parameters below. `SecureString` parameters are encrypted with the default AWS-managed KMS key.
+
+```bash
+ENV=development  # or staging | production
+
+# Google
+aws ssm put-parameter --name "/readafull/$ENV/auth/google/client-id" \
+  --type String --value "<google-oauth-client-id>"
+aws ssm put-parameter --name "/readafull/$ENV/auth/google/client-secret" \
+  --type SecureString --value "<google-oauth-client-secret>"
+
+# Facebook
+aws ssm put-parameter --name "/readafull/$ENV/auth/facebook/app-id" \
+  --type String --value "<facebook-app-id>"
+aws ssm put-parameter --name "/readafull/$ENV/auth/facebook/app-secret" \
+  --type SecureString --value "<facebook-app-secret>"
+
+# Apple
+aws ssm put-parameter --name "/readafull/$ENV/auth/apple/services-id" \
+  --type String --value "<apple-services-id>"
+aws ssm put-parameter --name "/readafull/$ENV/auth/apple/team-id" \
+  --type String --value "<apple-team-id>"
+aws ssm put-parameter --name "/readafull/$ENV/auth/apple/key-id" \
+  --type String --value "<apple-key-id>"
+aws ssm put-parameter --name "/readafull/$ENV/auth/apple/private-key" \
+  --type SecureString --value "$(cat AuthKey_XXXX.p8)"
+```
+
+### 2. Opt-in providers at deploy time
+
+Providers are opt-in via environment variables so missing credentials never break a deployment. Enable each provider only after its SSM parameters are registered:
+
+```bash
+READAFULL_AUTH_GOOGLE_ENABLED=true \
+READAFULL_AUTH_FACEBOOK_ENABLED=true \
+READAFULL_AUTH_APPLE_ENABLED=true \
+./scripts/deploy.sh development
+```
+
+When a flag is unset (or set to anything other than `true`/`1`), the corresponding identity provider is omitted from the User Pool and the User Pool Client only advertises providers that are actually configured.
+
+### 3. Post-confirmation trigger
+
+A Lambda trigger (`lambda/auth-triggers/postConfirmation.ts`) is attached to the User Pool. When a user (including federated sign-ups) confirms for the first time, it creates the corresponding profile item in the main DynamoDB table (`PK=USER#<sub>, SK=PROFILE#main`) with default learner preferences. The write is idempotent — repeated invocations for the same user are ignored.
 
 ## Monitoring
 

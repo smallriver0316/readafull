@@ -1,3 +1,14 @@
+export interface SocialProviderConfig {
+  enabled: boolean;
+  ssmParameters: Record<string, string>;
+}
+
+export interface CognitoSocialProvidersConfig {
+  google: SocialProviderConfig;
+  facebook: SocialProviderConfig;
+  apple: SocialProviderConfig;
+}
+
 export interface EnvironmentConfig {
   account?: string;
   region: string;
@@ -8,8 +19,10 @@ export interface EnvironmentConfig {
   // Cognito Configuration
   cognito: {
     userPoolName: string;
+    domainPrefix: string;
     allowedCallbackURLs: string[];
     allowedLogoutURLs: string[];
+    socialProviders: CognitoSocialProvidersConfig;
   };
 
   // DynamoDB Configuration
@@ -66,6 +79,38 @@ export const getEnvironmentConfig = (environment: string): EnvironmentConfig => 
     return undefined;
   };
 
+  const isFlagEnabled = (value: string | undefined): boolean =>
+    value === 'true' || value === '1';
+
+  const buildSocialProviders = (envName: string): CognitoSocialProvidersConfig => {
+    const base = `/readafull/${envName}/auth`;
+    return {
+      google: {
+        enabled: isFlagEnabled(process.env.READAFULL_AUTH_GOOGLE_ENABLED),
+        ssmParameters: {
+          clientId: `${base}/google/client-id`,
+          clientSecret: `${base}/google/client-secret`,
+        },
+      },
+      facebook: {
+        enabled: isFlagEnabled(process.env.READAFULL_AUTH_FACEBOOK_ENABLED),
+        ssmParameters: {
+          appId: `${base}/facebook/app-id`,
+          appSecret: `${base}/facebook/app-secret`,
+        },
+      },
+      apple: {
+        enabled: isFlagEnabled(process.env.READAFULL_AUTH_APPLE_ENABLED),
+        ssmParameters: {
+          servicesId: `${base}/apple/services-id`,
+          teamId: `${base}/apple/team-id`,
+          keyId: `${base}/apple/key-id`,
+          privateKey: `${base}/apple/private-key`,
+        },
+      },
+    };
+  };
+
   const configs: Record<string, EnvironmentConfig> = {
     development: {
       region: 'ap-northeast-1',
@@ -75,8 +120,16 @@ export const getEnvironmentConfig = (environment: string): EnvironmentConfig => 
 
       cognito: {
         userPoolName: 'readafull-users-dev',
-        allowedCallbackURLs: ['http://localhost:3000/auth/callback'],
-        allowedLogoutURLs: ['http://localhost:3000/'],
+        domainPrefix: 'readafull-dev',
+        allowedCallbackURLs: [
+          'http://localhost:3000/auth/callback',
+          'readafull://auth/callback',
+        ],
+        allowedLogoutURLs: [
+          'http://localhost:3000/',
+          'readafull://auth/signout',
+        ],
+        socialProviders: buildSocialProviders('development'),
       },
 
       dynamodb: {
@@ -115,8 +168,16 @@ export const getEnvironmentConfig = (environment: string): EnvironmentConfig => 
 
       cognito: {
         userPoolName: 'readafull-users-staging',
-        allowedCallbackURLs: ['https://staging.readafull.com/auth/callback'],
-        allowedLogoutURLs: ['https://staging.readafull.com/'],
+        domainPrefix: 'readafull-staging',
+        allowedCallbackURLs: [
+          'https://staging.readafull.com/auth/callback',
+          'readafull://auth/callback',
+        ],
+        allowedLogoutURLs: [
+          'https://staging.readafull.com/',
+          'readafull://auth/signout',
+        ],
+        socialProviders: buildSocialProviders('staging'),
       },
 
       dynamodb: {
@@ -155,8 +216,16 @@ export const getEnvironmentConfig = (environment: string): EnvironmentConfig => 
 
       cognito: {
         userPoolName: 'readafull-users-prod',
-        allowedCallbackURLs: ['https://readafull.com/auth/callback'],
-        allowedLogoutURLs: ['https://readafull.com/'],
+        domainPrefix: 'readafull-auth',
+        allowedCallbackURLs: [
+          'https://readafull.com/auth/callback',
+          'readafull://auth/callback',
+        ],
+        allowedLogoutURLs: [
+          'https://readafull.com/',
+          'readafull://auth/signout',
+        ],
+        socialProviders: buildSocialProviders('production'),
       },
 
       dynamodb: {
