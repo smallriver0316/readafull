@@ -34,12 +34,12 @@ Consider alternatives (CloudFormation, Terraform) when:
 
 ### 1. Getting Started
 
-For CDK basics and getting started guidance, use:
+For prescriptive guidance when generating or reviewing CDK code, use:
 ```
-mcp__aws-cdk__CDKGeneralGuidance
+mcp__aws-iac__cdk_best_practices
 ```
 
-This provides prescriptive advice for CDK architecture and patterns.
+This returns CDK architecture guidance, patterns, and review checklists from the aws-iac MCP server.
 
 ### 2. Choose the Right Construct Level
 
@@ -58,16 +58,14 @@ This provides prescriptive advice for CDK architecture and patterns.
 
 ### 3. Leverage AWS Solutions Constructs
 
-Before building custom patterns, check if a Solutions Construct exists:
+Before building custom patterns, check if a Solutions Construct or community construct exists:
 ```
-mcp__aws-cdk__GetAwsSolutionsConstructPattern
+mcp__aws-iac__search_cdk_samples_and_constructs
 ```
 
-**Search by pattern name:**
-- `pattern_name: "aws-lambda-dynamodb"`
-
-**Search by services:**
-- `services: ["lambda", "dynamodb"]`
+**Search examples:**
+- `query: "aws-lambda-dynamodb solutions construct"`
+- `query: "lambda dynamodb"` for service-pair patterns
 
 Benefits:
 - Vetted architecture patterns following Well-Architected Framework
@@ -89,24 +87,30 @@ AwsSolutionsChecks.check(app);
 ```
 
 **Understanding CDK Nag rules:**
+
+The aws-iac MCP server has no dedicated CDK Nag explanation tool. To look up a rule (e.g., `AwsSolutions-IAM4`):
 ```
-mcp__aws-cdk__ExplainCDKNagRule
+mcp__aws-iac__search_cdk_documentation     // for CDK Nag rule docs and remediation guidance
 ```
-- Pass `rule_id` (e.g., "AwsSolutions-IAM4") to get detailed explanation and remediation
+
+For complementary template-level compliance checking (cfn-guard) on the synthesized CloudFormation, use:
+```
+mcp__aws-iac__check_cloudformation_template_compliance
+```
 
 **Important**: When CDK Nag flags issues, fix the underlying security problem rather than suppressing the rule. Only suppress when there's a valid architectural reason, and always document the justification.
 
 ### 5. Use GenAI CDK Constructs
 
-For Bedrock and GenAI workloads, search specialized constructs:
+For Bedrock and GenAI workloads, search specialized constructs through the aws-iac samples/constructs index:
 ```
-mcp__aws-cdk__SearchGenAICDKConstructs
+mcp__aws-iac__search_cdk_samples_and_constructs
 ```
 
 **Search examples:**
-- `query: "bedrock agent", construct_type: "bedrock"`
-- `query: "knowledgebase vector"`
-- `query: "opensearch vector"`
+- `query: "bedrock agent construct"`
+- `query: "bedrock knowledge base vector"`
+- `query: "opensearch vector store"`
 
 ## AWS Documentation Integration
 
@@ -214,13 +218,16 @@ TypeScript configuration best practices:
 
 | Task | Use This Tool |
 |------|---------------|
-| General CDK guidance | `mcp__aws-cdk__CDKGeneralGuidance` |
-| Find architecture patterns | `mcp__aws-cdk__GetAwsSolutionsConstructPattern` |
-| Understand CDK Nag rules | `mcp__aws-cdk__ExplainCDKNagRule` |
-| GenAI/Bedrock constructs | `mcp__aws-cdk__SearchGenAICDKConstructs` |
-| CDK documentation search | `mcp__aws-documentation__search_documentation` with `topics: ["cdk_docs", "cdk_constructs"]` |
-| Read specific CDK docs | `mcp__aws-documentation__read_documentation` |
-| Find related docs | `mcp__aws-documentation__recommend` |
+| General CDK guidance / code review | `mcp__aws-iac__cdk_best_practices` |
+| Find architecture patterns, samples, or community constructs | `mcp__aws-iac__search_cdk_samples_and_constructs` |
+| Understand CDK Nag rules | `mcp__aws-iac__search_cdk_documentation` (search by rule id) |
+| Validate synthesized template (cfn-lint) | `mcp__aws-iac__validate_cloudformation_template` |
+| Check template compliance (cfn-guard) | `mcp__aws-iac__check_cloudformation_template_compliance` |
+| Troubleshoot CloudFormation deployment failures | `mcp__aws-iac__troubleshoot_cloudformation_deployment` |
+| GenAI/Bedrock constructs | `mcp__aws-iac__search_cdk_samples_and_constructs` |
+| CDK documentation search | `mcp__aws-iac__search_cdk_documentation` |
+| Read specific CDK / IaC documentation page | `mcp__aws-iac__read_iac_documentation_page` |
+| Read general AWS docs / find related docs | `mcp__aws-documentation__read_documentation`, `mcp__aws-documentation__recommend` |
 
 ## Testing Strategy
 
