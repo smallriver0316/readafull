@@ -1,3 +1,15 @@
+import * as lambda from 'aws-cdk-lib/aws-lambda';
+
+/**
+ * Single source of truth for the Lambda runtime. Bump this constant in
+ * lockstep with the Runtime Versions table in .kiro/steering/tech.md.
+ * All stacks must reference these constants rather than hardcoding the
+ * runtime / architecture / bundling target.
+ */
+export const LAMBDA_NODE_RUNTIME = lambda.Runtime.NODEJS_24_X;
+export const LAMBDA_BUNDLING_NODE_TARGET = 'node24';
+export const LAMBDA_ARCHITECTURE = lambda.Architecture.ARM_64;
+
 export interface SocialProviderConfig {
   enabled: boolean;
   ssmParameters: Record<string, string>;
@@ -43,11 +55,12 @@ export interface EnvironmentConfig {
     throttleBurstLimit: number;
   };
 
-  // Lambda Configuration
+  // Lambda Configuration. Runtime / architecture / bundling target are
+  // intentionally NOT per-environment — they live in the LAMBDA_NODE_RUNTIME
+  // family of constants exported from this module.
   lambda: {
     memorySize: number;
     timeout: number;
-    runtime: string;
   };
 
   // Monitoring Configuration
@@ -150,7 +163,6 @@ export const getEnvironmentConfig = (environment: string): EnvironmentConfig => 
       lambda: {
         memorySize: 512,
         timeout: 30,
-        runtime: 'nodejs24.x',
       },
 
       monitoring: {
@@ -198,7 +210,6 @@ export const getEnvironmentConfig = (environment: string): EnvironmentConfig => 
       lambda: {
         memorySize: 1024,
         timeout: 60,
-        runtime: 'nodejs24.x',
       },
 
       monitoring: {
@@ -246,7 +257,6 @@ export const getEnvironmentConfig = (environment: string): EnvironmentConfig => 
       lambda: {
         memorySize: 1024,
         timeout: 60,
-        runtime: 'nodejs24.x',
       },
 
       monitoring: {

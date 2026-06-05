@@ -6,7 +6,13 @@ import * as lambda from 'aws-cdk-lib/aws-lambda';
 import * as ssm from 'aws-cdk-lib/aws-ssm';
 import { NodejsFunction } from 'aws-cdk-lib/aws-lambda-nodejs';
 import { Construct } from 'constructs';
-import { EnvironmentConfig, SocialProviderConfig } from '../config/environment';
+import {
+  EnvironmentConfig,
+  LAMBDA_ARCHITECTURE,
+  LAMBDA_BUNDLING_NODE_TARGET,
+  LAMBDA_NODE_RUNTIME,
+  SocialProviderConfig,
+} from '../config/environment';
 
 interface AuthStackProps extends cdk.StackProps {
   mainTable: dynamodb.Table;
@@ -42,8 +48,8 @@ export class AuthStack extends cdk.Stack {
     // when a user (including federated identity sign-up) first confirms.
     this.postConfirmationFunction = new NodejsFunction(this, 'PostConfirmationFunction', {
       functionName: `${config.stackPrefix}-post-confirmation`,
-      runtime: lambda.Runtime.NODEJS_24_X,
-      architecture: lambda.Architecture.ARM_64,
+      runtime: LAMBDA_NODE_RUNTIME,
+      architecture: LAMBDA_ARCHITECTURE,
       entry: path.join(__dirname, '..', 'lambda', 'auth-triggers', 'postConfirmation.ts'),
       handler: 'handler',
       memorySize: 256,
@@ -53,7 +59,7 @@ export class AuthStack extends cdk.Stack {
         ENVIRONMENT: config.environment,
       },
       bundling: {
-        target: 'node24',
+        target: LAMBDA_BUNDLING_NODE_TARGET,
         minify: true,
         sourceMap: true,
         externalModules: ['@aws-sdk/*'],

@@ -31,6 +31,21 @@
 - **Amazon CloudWatch**: Metrics, logging, and monitoring
 - **AWS X-Ray**: Distributed tracing and performance analysis
 
+### Runtime Versions
+
+The following runtime versions are the single source of truth for this project. When adding or updating a Lambda function, every value in this table must agree — code, bundler target, and documentation are bumped together.
+
+| Component | Version | Source-of-truth constant |
+|---|---|---|
+| AWS Lambda runtime | **Node.js 24.x** | `LAMBDA_NODE_RUNTIME` (= `lambda.Runtime.NODEJS_24_X`) |
+| esbuild bundling target | **`node24`** | `LAMBDA_BUNDLING_NODE_TARGET` |
+| Lambda architecture | **arm64** (Graviton2) | `LAMBDA_ARCHITECTURE` (= `lambda.Architecture.ARM_64`) |
+| Local Node.js toolchain (CDK / build / tests) | **Node.js 24+** | `infrastructure/README.md` Prerequisites |
+
+All three constants are exported from [`infrastructure/config/environment.ts`](../../infrastructure/config/environment.ts). Stacks MUST import and reuse them — do not hardcode `lambda.Runtime.NODEJS_*_X`, `lambda.Architecture.*`, or the esbuild `target` string in stack or construct code.
+
+> NOTE: When a runtime bump is required, update this table and the constants in `environment.ts` together. The build is the safety net — `tsc` will not let a stack escape using the old runtime as long as it imports from the constants module.
+
 ## Mobile Technology Stack
 
 - **Frontend Framework**: React Native with TypeScript
