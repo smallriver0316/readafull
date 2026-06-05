@@ -42,7 +42,7 @@ export class AuthStack extends cdk.Stack {
     // when a user (including federated identity sign-up) first confirms.
     this.postConfirmationFunction = new NodejsFunction(this, 'PostConfirmationFunction', {
       functionName: `${config.stackPrefix}-post-confirmation`,
-      runtime: lambda.Runtime.NODEJS_22_X,
+      runtime: lambda.Runtime.NODEJS_24_X,
       architecture: lambda.Architecture.ARM_64,
       entry: path.join(__dirname, '..', 'lambda', 'auth-triggers', 'postConfirmation.ts'),
       handler: 'handler',
@@ -53,7 +53,7 @@ export class AuthStack extends cdk.Stack {
         ENVIRONMENT: config.environment,
       },
       bundling: {
-        target: 'node22',
+        target: 'node24',
         minify: true,
         sourceMap: true,
         externalModules: ['@aws-sdk/*'],
