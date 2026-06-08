@@ -138,11 +138,20 @@ export class AuthStack extends cdk.Stack {
       this.enabledSocialProviders.push(cognito.UserPoolClientIdentityProvider.FACEBOOK);
     }
 
-    const appleProvider = this.maybeAddAppleProvider(config.cognito.socialProviders.apple);
-    if (appleProvider) {
-      providerDependencies.push(appleProvider);
-      this.enabledSocialProviders.push(cognito.UserPoolClientIdentityProvider.APPLE);
+    const amazonProvider = this.maybeAddAmazonProvider(config.cognito.socialProviders.amazon);
+    if (amazonProvider) {
+      providerDependencies.push(amazonProvider);
+      this.enabledSocialProviders.push(cognito.UserPoolClientIdentityProvider.AMAZON);
     }
+
+    // Apple is temporarily disabled — Apple Developer Program requires a paid
+    // membership. Uncomment together with `maybeAddAppleProvider` below and the
+    // `apple` field in CognitoSocialProvidersConfig when enrollment is in place.
+    // const appleProvider = this.maybeAddAppleProvider(config.cognito.socialProviders.apple);
+    // if (appleProvider) {
+    //   providerDependencies.push(appleProvider);
+    //   this.enabledSocialProviders.push(cognito.UserPoolClientIdentityProvider.APPLE);
+    // }
 
     // Hosted UI domain — required when using federated sign-in.
     this.userPoolDomain = this.userPool.addDomain('UserPoolDomain', {
@@ -259,24 +268,53 @@ export class AuthStack extends cdk.Stack {
     });
   }
 
-  private maybeAddAppleProvider(
+  private maybeAddAmazonProvider(
     providerConfig: SocialProviderConfig
-  ): cognito.UserPoolIdentityProviderApple | undefined {
+  ): cognito.UserPoolIdentityProviderAmazon | undefined {
     if (!providerConfig.enabled) {
       return undefined;
     }
 
-    return new cognito.UserPoolIdentityProviderApple(this, 'AppleProvider', {
+    // Amazon's CDK construct only accepts a string secret, so we route the
+    // SecureString through a CloudFormation dynamic reference. The resolved
+    // secret value never appears in the synthesized template.
+    const clientSecretRef = cdk.SecretValue
+      .ssmSecure(providerConfig.ssmParameters.clientSecret)
+      .unsafeUnwrap();
+
+    return new cognito.UserPoolIdentityProviderAmazon(this, 'AmazonProvider', {
       userPool: this.userPool,
-      clientId: this.stringParameterValue(providerConfig.ssmParameters.servicesId),
-      teamId: this.stringParameterValue(providerConfig.ssmParameters.teamId),
-      keyId: this.stringParameterValue(providerConfig.ssmParameters.keyId),
-      privateKeyValue: cdk.SecretValue.ssmSecure(providerConfig.ssmParameters.privateKey),
-      scopes: ['email', 'name'],
+      clientId: this.stringParameterValue(providerConfig.ssmParameters.clientId),
+      clientSecret: clientSecretRef,
+      scopes: ['profile'],
       attributeMapping: {
         email: cognito.ProviderAttribute.other('email'),
         fullname: cognito.ProviderAttribute.other('name'),
       },
     });
   }
+
+  // Apple is temporarily disabled — Apple Developer Program requires a paid
+  // membership. Restore this method together with the call site above and the
+  // `apple` field in CognitoSocialProvidersConfig when enrollment is in place.
+  // private maybeAddAppleProvider(
+  //   providerConfig: SocialProviderConfig
+  // ): cognito.UserPoolIdentityProviderApple | undefined {
+  //   if (!providerConfig.enabled) {
+  //     return undefined;
+  //   }
+  //
+  //   return new cognito.UserPoolIdentityProviderApple(this, 'AppleProvider', {
+  //     userPool: this.userPool,
+  //     clientId: this.stringParameterValue(providerConfig.ssmParameters.servicesId),
+  //     teamId: this.stringParameterValue(providerConfig.ssmParameters.teamId),
+  //     keyId: this.stringParameterValue(providerConfig.ssmParameters.keyId),
+  //     privateKeyValue: cdk.SecretValue.ssmSecure(providerConfig.ssmParameters.privateKey),
+  //     scopes: ['email', 'name'],
+  //     attributeMapping: {
+  //       email: cognito.ProviderAttribute.other('email'),
+  //       fullname: cognito.ProviderAttribute.other('name'),
+  //     },
+  //   });
+  // }
 }

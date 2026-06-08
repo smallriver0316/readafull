@@ -21,7 +21,11 @@ const buildAuthStack = (
       socialProviders: {
         google: { ...base.cognito.socialProviders.google, enabled: !!enabled.google },
         facebook: { ...base.cognito.socialProviders.facebook, enabled: !!enabled.facebook },
-        apple: { ...base.cognito.socialProviders.apple, enabled: !!enabled.apple },
+        amazon: { ...base.cognito.socialProviders.amazon, enabled: !!enabled.amazon },
+        // Apple is temporarily disabled — restore alongside the `apple` entry
+        // in CognitoSocialProvidersConfig when Apple Developer Program
+        // enrollment is in place.
+        // apple: { ...base.cognito.socialProviders.apple, enabled: !!enabled.apple },
       },
     },
   };
@@ -157,24 +161,42 @@ describe('AuthStack', () => {
       });
     });
 
-    it('creates an Apple provider when enabled', () => {
-      const { template, stack } = buildAuthStack({ apple: true });
+    it('creates a Login with Amazon provider when enabled', () => {
+      const { template, stack } = buildAuthStack({ amazon: true });
 
       expect(stack.enabledSocialProviders.map((p) => p.name)).toEqual(
-        expect.arrayContaining(['SignInWithApple'])
+        expect.arrayContaining(['LoginWithAmazon'])
       );
 
       template.hasResourceProperties('AWS::Cognito::UserPoolIdentityProvider', {
-        ProviderType: 'SignInWithApple',
+        ProviderType: 'LoginWithAmazon',
+        ProviderDetails: Match.objectLike({
+          authorize_scopes: 'profile',
+        }),
       });
     });
 
     it('enables every supported provider on the client when all are configured', () => {
-      const { stack } = buildAuthStack({ google: true, facebook: true, apple: true });
+      const { stack } = buildAuthStack({ google: true, facebook: true, amazon: true });
 
       expect(stack.enabledSocialProviders.map((p) => p.name).sort()).toEqual(
-        ['COGNITO', 'Facebook', 'Google', 'SignInWithApple'].sort()
+        ['COGNITO', 'Facebook', 'Google', 'LoginWithAmazon'].sort()
       );
     });
+
+    // Apple is temporarily disabled — Apple Developer Program requires a paid
+    // membership. Restore this case together with the `apple` entries in
+    // EnvironmentConfig and AuthStack when enrollment is in place.
+    // it('creates an Apple provider when enabled', () => {
+    //   const { template, stack } = buildAuthStack({ apple: true });
+    //
+    //   expect(stack.enabledSocialProviders.map((p) => p.name)).toEqual(
+    //     expect.arrayContaining(['SignInWithApple'])
+    //   );
+    //
+    //   template.hasResourceProperties('AWS::Cognito::UserPoolIdentityProvider', {
+    //     ProviderType: 'SignInWithApple',
+    //   });
+    // });
   });
 });

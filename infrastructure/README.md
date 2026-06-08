@@ -149,7 +149,9 @@ infrastructure/
 
 ## Social Login Configuration
 
-Social identity providers (Google, Facebook, Apple) are managed by CDK using credentials stored in AWS Systems Manager Parameter Store. The synthesized CloudFormation template only contains dynamic references (`{{resolve:ssm-secure:...}}`), so secret values never leave Parameter Store.
+Social identity providers (Google, Facebook, Login with Amazon) are managed by CDK using credentials stored in AWS Systems Manager Parameter Store. The synthesized CloudFormation template only contains dynamic references (`{{resolve:ssm-secure:...}}`), so secret values never leave Parameter Store.
+
+> **Apple Sign-In is temporarily disabled** because the Apple Developer Program requires a paid membership. The Apple-related infrastructure code, env flag (`READAFULL_AUTH_APPLE_ENABLED`), and SSM parameter paths are kept commented out in the codebase. When the Developer Program enrollment is complete, restore them in `infrastructure/config/environment.ts`, `infrastructure/lib/auth-stack.ts`, `infrastructure/test/auth-stack.test.ts`, and the commented section of this README.
 
 ### 1. Store credentials in SSM Parameter Store
 
@@ -170,15 +172,21 @@ aws ssm put-parameter --name "/readafull/$ENV/auth/facebook/app-id" \
 aws ssm put-parameter --name "/readafull/$ENV/auth/facebook/app-secret" \
   --type SecureString --value "<facebook-app-secret>"
 
-# Apple
-aws ssm put-parameter --name "/readafull/$ENV/auth/apple/services-id" \
-  --type String --value "<apple-services-id>"
-aws ssm put-parameter --name "/readafull/$ENV/auth/apple/team-id" \
-  --type String --value "<apple-team-id>"
-aws ssm put-parameter --name "/readafull/$ENV/auth/apple/key-id" \
-  --type String --value "<apple-key-id>"
-aws ssm put-parameter --name "/readafull/$ENV/auth/apple/private-key" \
-  --type SecureString --value "$(cat AuthKey_XXXX.p8)"
+# Login with Amazon
+aws ssm put-parameter --name "/readafull/$ENV/auth/amazon/client-id" \
+  --type String --value "<amazon-lwa-client-id>"
+aws ssm put-parameter --name "/readafull/$ENV/auth/amazon/client-secret" \
+  --type SecureString --value "<amazon-lwa-client-secret>"
+
+# Apple (DEFERRED — requires paid Apple Developer Program enrollment)
+# aws ssm put-parameter --name "/readafull/$ENV/auth/apple/services-id" \
+#   --type String --value "<apple-services-id>"
+# aws ssm put-parameter --name "/readafull/$ENV/auth/apple/team-id" \
+#   --type String --value "<apple-team-id>"
+# aws ssm put-parameter --name "/readafull/$ENV/auth/apple/key-id" \
+#   --type String --value "<apple-key-id>"
+# aws ssm put-parameter --name "/readafull/$ENV/auth/apple/private-key" \
+#   --type SecureString --value "$(cat AuthKey_XXXX.p8)"
 ```
 
 ### 2. Opt-in providers at deploy time
@@ -188,8 +196,12 @@ Providers are opt-in via environment variables so missing credentials never brea
 ```bash
 READAFULL_AUTH_GOOGLE_ENABLED=true \
 READAFULL_AUTH_FACEBOOK_ENABLED=true \
-READAFULL_AUTH_APPLE_ENABLED=true \
+READAFULL_AUTH_AMAZON_ENABLED=true \
 ./scripts/deploy.sh development
+
+# Apple (DEFERRED): once the Developer Program enrollment is complete and
+# the apple-related code is uncommented, add the flag below.
+# READAFULL_AUTH_APPLE_ENABLED=true \
 ```
 
 When a flag is unset (or set to anything other than `true`/`1`), the corresponding identity provider is omitted from the User Pool and the User Pool Client only advertises providers that are actually configured.

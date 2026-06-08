@@ -18,7 +18,10 @@ export interface SocialProviderConfig {
 export interface CognitoSocialProvidersConfig {
   google: SocialProviderConfig;
   facebook: SocialProviderConfig;
-  apple: SocialProviderConfig;
+  amazon: SocialProviderConfig;
+  // Apple is temporarily disabled — Apple Developer Program requires a paid
+  // membership. Uncomment when the program enrollment is in place.
+  // apple: SocialProviderConfig;
 }
 
 export interface EnvironmentConfig {
@@ -112,15 +115,25 @@ export const getEnvironmentConfig = (environment: string): EnvironmentConfig => 
           appSecret: `${base}/facebook/app-secret`,
         },
       },
-      apple: {
-        enabled: isFlagEnabled(process.env.READAFULL_AUTH_APPLE_ENABLED),
+      amazon: {
+        enabled: isFlagEnabled(process.env.READAFULL_AUTH_AMAZON_ENABLED),
         ssmParameters: {
-          servicesId: `${base}/apple/services-id`,
-          teamId: `${base}/apple/team-id`,
-          keyId: `${base}/apple/key-id`,
-          privateKey: `${base}/apple/private-key`,
+          clientId: `${base}/amazon/client-id`,
+          clientSecret: `${base}/amazon/client-secret`,
         },
       },
+      // Apple is temporarily disabled — Apple Developer Program requires a
+      // paid membership. Uncomment together with the `apple` entry in
+      // CognitoSocialProvidersConfig when enrollment is complete.
+      // apple: {
+      //   enabled: isFlagEnabled(process.env.READAFULL_AUTH_APPLE_ENABLED),
+      //   ssmParameters: {
+      //     servicesId: `${base}/apple/services-id`,
+      //     teamId: `${base}/apple/team-id`,
+      //     keyId: `${base}/apple/key-id`,
+      //     privateKey: `${base}/apple/private-key`,
+      //   },
+      // },
     };
   };
 
