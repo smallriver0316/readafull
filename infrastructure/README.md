@@ -149,13 +149,76 @@ infrastructure/
 
 ## Social Login Configuration
 
-After deploying the Auth Stack, you need to manually configure social identity providers in the Cognito User Pool:
+Social identity providers (Google, Facebook, Login with Amazon) are managed by CDK using credentials stored in AWS Systems Manager Parameter Store. The synthesized CloudFormation template only contains parameter references (`{{resolve:ssm:...}}` or `AWS::SSM::Parameter::Value<String>` CFN parameter refs), so secret values never appear in the template or stack events.
 
-1. Google: Add Google OAuth client ID and secret
-2. Facebook: Add Facebook App ID and secret
-3. Apple: Add Apple Sign In credentials
+> ⚠️ **SecureString is NOT used.** CloudFormation does not support the `{{resolve:ssm-secure:...}}` dynamic reference for `AWS::Cognito::UserPoolIdentityProvider/ProviderDetails/client_secret`, so we register every SSM parameter — including client secrets — as plain `String`. This means client secrets are stored **unencrypted at rest** in SSM Parameter Store (IAM still controls access). This is acceptable for development. **Before production deployment** we will switch to a Lambda-backed Custom Resource that reads SecureString via the SDK and configures the IdP directly — tracked as a follow-up. See [issue / branch](../README.md) when that lands.
 
-These cannot be added via CDK due to security best practices (credentials should not be in code).
+> **Apple Sign-In is temporarily disabled** because the Apple Developer Program requires a paid membership. The Apple-related infrastructure code, env flag (`READAFULL_AUTH_APPLE_ENABLED`), and SSM parameter paths are kept commented out in the codebase. When the Developer Program enrollment is complete, restore them in `infrastructure/config/environment.ts`, `infrastructure/lib/auth-stack.ts`, `infrastructure/test/auth-stack.test.ts`, and the commented section of this README.
+
+### 1. Store credentials in SSM Parameter Store
+
+For each environment (`development` / `staging` / `production`), register the parameters below. **All parameters use `String` type (NOT `SecureString`)** — see the warning above.
+
+```bash
+ENV=development  # or staging | production
+
+# Google
+aws ssm put-parameter --name "/readafull/$ENV/auth/google/client-id" \
+  --type String --value "<google-oauth-client-id>"
+aws ssm put-parameter --name "/readafull/$ENV/auth/google/client-secret" \
+  --type String --value "<google-oauth-client-secret>"
+
+# Facebook
+aws ssm put-parameter --name "/readafull/$ENV/auth/facebook/app-id" \
+  --type String --value "<facebook-app-id>"
+aws ssm put-parameter --name "/readafull/$ENV/auth/facebook/app-secret" \
+  --type String --value "<facebook-app-secret>"
+
+# Login with Amazon
+aws ssm put-parameter --name "/readafull/$ENV/auth/amazon/client-id" \
+  --type String --value "<amazon-lwa-client-id>"
+aws ssm put-parameter --name "/readafull/$ENV/auth/amazon/client-secret" \
+  --type String --value "<amazon-lwa-client-secret>"
+
+# Apple (DEFERRED — requires paid Apple Developer Program enrollment)
+# aws ssm put-parameter --name "/readafull/$ENV/auth/apple/services-id" \
+#   --type String --value "<apple-services-id>"
+# aws ssm put-parameter --name "/readafull/$ENV/auth/apple/team-id" \
+#   --type String --value "<apple-team-id>"
+# aws ssm put-parameter --name "/readafull/$ENV/auth/apple/key-id" \
+#   --type String --value "<apple-key-id>"
+# aws ssm put-parameter --name "/readafull/$ENV/auth/apple/private-key" \
+#   --type String --value "$(cat AuthKey_XXXX.p8)"
+```
+
+> **Migrating from a previous SecureString registration?** If you already registered parameters as `SecureString` (per an earlier version of this README), delete them first and re-register as `String`:
+> ```bash
+> aws ssm delete-parameter --name "/readafull/$ENV/auth/google/client-secret"
+> aws ssm delete-parameter --name "/readafull/$ENV/auth/facebook/app-secret"
+> aws ssm delete-parameter --name "/readafull/$ENV/auth/amazon/client-secret"
+> # then re-run the put-parameter commands above
+> ```
+
+### 2. Opt-in providers at deploy time
+
+Providers are opt-in via environment variables so missing credentials never break a deployment. Enable each provider only after its SSM parameters are registered:
+
+```bash
+READAFULL_AUTH_GOOGLE_ENABLED=true \
+READAFULL_AUTH_FACEBOOK_ENABLED=true \
+READAFULL_AUTH_AMAZON_ENABLED=true \
+./scripts/deploy.sh development
+
+# Apple (DEFERRED): once the Developer Program enrollment is complete and
+# the apple-related code is uncommented, add the flag below.
+# READAFULL_AUTH_APPLE_ENABLED=true \
+```
+
+When a flag is unset (or set to anything other than `true`/`1`), the corresponding identity provider is omitted from the User Pool and the User Pool Client only advertises providers that are actually configured.
+
+### 3. Post-confirmation trigger
+
+A Lambda trigger (`lambda/auth-triggers/postConfirmation.ts`) is attached to the User Pool. When a user (including federated sign-ups) confirms for the first time, it creates the corresponding profile item in the main DynamoDB table (`PK=USER#<sub>, SK=PROFILE#main`) with default learner preferences. The write is idempotent — repeated invocations for the same user are ignored.
 
 ## Monitoring
 
