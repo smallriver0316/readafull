@@ -149,13 +149,15 @@ infrastructure/
 
 ## Social Login Configuration
 
-Social identity providers (Google, Facebook, Login with Amazon) are managed by CDK using credentials stored in AWS Systems Manager Parameter Store. The synthesized CloudFormation template only contains dynamic references (`{{resolve:ssm-secure:...}}`), so secret values never leave Parameter Store.
+Social identity providers (Google, Facebook, Login with Amazon) are managed by CDK using credentials stored in AWS Systems Manager Parameter Store. The synthesized CloudFormation template only contains parameter references (`{{resolve:ssm:...}}` or `AWS::SSM::Parameter::Value<String>` CFN parameter refs), so secret values never appear in the template or stack events.
+
+> ⚠️ **SecureString is NOT used.** CloudFormation does not support the `{{resolve:ssm-secure:...}}` dynamic reference for `AWS::Cognito::UserPoolIdentityProvider/ProviderDetails/client_secret`, so we register every SSM parameter — including client secrets — as plain `String`. This means client secrets are stored **unencrypted at rest** in SSM Parameter Store (IAM still controls access). This is acceptable for development. **Before production deployment** we will switch to a Lambda-backed Custom Resource that reads SecureString via the SDK and configures the IdP directly — tracked as a follow-up. See [issue / branch](../README.md) when that lands.
 
 > **Apple Sign-In is temporarily disabled** because the Apple Developer Program requires a paid membership. The Apple-related infrastructure code, env flag (`READAFULL_AUTH_APPLE_ENABLED`), and SSM parameter paths are kept commented out in the codebase. When the Developer Program enrollment is complete, restore them in `infrastructure/config/environment.ts`, `infrastructure/lib/auth-stack.ts`, `infrastructure/test/auth-stack.test.ts`, and the commented section of this README.
 
 ### 1. Store credentials in SSM Parameter Store
 
-For each environment (`development` / `staging` / `production`), register the parameters below. `SecureString` parameters are encrypted with the default AWS-managed KMS key.
+For each environment (`development` / `staging` / `production`), register the parameters below. **All parameters use `String` type (NOT `SecureString`)** — see the warning above.
 
 ```bash
 ENV=development  # or staging | production
@@ -164,19 +166,19 @@ ENV=development  # or staging | production
 aws ssm put-parameter --name "/readafull/$ENV/auth/google/client-id" \
   --type String --value "<google-oauth-client-id>"
 aws ssm put-parameter --name "/readafull/$ENV/auth/google/client-secret" \
-  --type SecureString --value "<google-oauth-client-secret>"
+  --type String --value "<google-oauth-client-secret>"
 
 # Facebook
 aws ssm put-parameter --name "/readafull/$ENV/auth/facebook/app-id" \
   --type String --value "<facebook-app-id>"
 aws ssm put-parameter --name "/readafull/$ENV/auth/facebook/app-secret" \
-  --type SecureString --value "<facebook-app-secret>"
+  --type String --value "<facebook-app-secret>"
 
 # Login with Amazon
 aws ssm put-parameter --name "/readafull/$ENV/auth/amazon/client-id" \
   --type String --value "<amazon-lwa-client-id>"
 aws ssm put-parameter --name "/readafull/$ENV/auth/amazon/client-secret" \
-  --type SecureString --value "<amazon-lwa-client-secret>"
+  --type String --value "<amazon-lwa-client-secret>"
 
 # Apple (DEFERRED — requires paid Apple Developer Program enrollment)
 # aws ssm put-parameter --name "/readafull/$ENV/auth/apple/services-id" \
@@ -186,8 +188,16 @@ aws ssm put-parameter --name "/readafull/$ENV/auth/amazon/client-secret" \
 # aws ssm put-parameter --name "/readafull/$ENV/auth/apple/key-id" \
 #   --type String --value "<apple-key-id>"
 # aws ssm put-parameter --name "/readafull/$ENV/auth/apple/private-key" \
-#   --type SecureString --value "$(cat AuthKey_XXXX.p8)"
+#   --type String --value "$(cat AuthKey_XXXX.p8)"
 ```
+
+> **Migrating from a previous SecureString registration?** If you already registered parameters as `SecureString` (per an earlier version of this README), delete them first and re-register as `String`:
+> ```bash
+> aws ssm delete-parameter --name "/readafull/$ENV/auth/google/client-secret"
+> aws ssm delete-parameter --name "/readafull/$ENV/auth/facebook/app-secret"
+> aws ssm delete-parameter --name "/readafull/$ENV/auth/amazon/client-secret"
+> # then re-run the put-parameter commands above
+> ```
 
 ### 2. Opt-in providers at deploy time
 

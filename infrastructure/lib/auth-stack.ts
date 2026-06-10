@@ -225,8 +225,27 @@ export class AuthStack extends cdk.Stack {
     });
   }
 
+  // All social provider secrets are read from SSM Parameter Store as `String`
+  // (NOT `SecureString`) at deploy time. CloudFormation does not support the
+  // `{{resolve:ssm-secure:...}}` dynamic reference for
+  // `AWS::Cognito::UserPoolIdentityProvider/ProviderDetails/client_secret`, so
+  // SecureString cannot be used here without a Custom Resource workaround.
+  //
+  // The trade-off is that the secret is stored unencrypted at rest in SSM
+  // (IAM still gates access, and the value never appears in CFN templates
+  // because we go through CFN-resolved SSM Parameter references). This is
+  // acceptable for development; production should switch to a Custom Resource
+  // that reads SecureString via the SDK and configures the IdP directly.
+  // See infrastructure/README.md "Social Login Configuration".
   private stringParameterValue(parameterName: string): string {
     return ssm.StringParameter.valueForStringParameter(this, parameterName);
+  }
+
+  private secretParameterValue(parameterName: string): cdk.SecretValue {
+    // `unsafePlainText` simply wraps the CDK token (which resolves to a CFN
+    // `Ref` of an SSM Parameter at deploy time) into a SecretValue, so the
+    // synthesized template still contains only a reference, not the secret.
+    return cdk.SecretValue.unsafePlainText(this.stringParameterValue(parameterName));
   }
 
   private maybeAddGoogleProvider(
@@ -239,7 +258,7 @@ export class AuthStack extends cdk.Stack {
     return new cognito.UserPoolIdentityProviderGoogle(this, 'GoogleProvider', {
       userPool: this.userPool,
       clientId: this.stringParameterValue(providerConfig.ssmParameters.clientId),
-      clientSecretValue: cdk.SecretValue.ssmSecure(providerConfig.ssmParameters.clientSecret),
+      clientSecretValue: this.secretParameterValue(providerConfig.ssmParameters.clientSecret),
       scopes: ['openid', 'email', 'profile'],
       attributeMapping: socialAttributeMapping,
     });
@@ -252,17 +271,10 @@ export class AuthStack extends cdk.Stack {
       return undefined;
     }
 
-    // Facebook's CDK construct only accepts a string secret, so we route the
-    // SecureString through a CloudFormation dynamic reference. The resolved
-    // secret value never appears in the synthesized template.
-    const appSecretRef = cdk.SecretValue
-      .ssmSecure(providerConfig.ssmParameters.appSecret)
-      .unsafeUnwrap();
-
     return new cognito.UserPoolIdentityProviderFacebook(this, 'FacebookProvider', {
       userPool: this.userPool,
       clientId: this.stringParameterValue(providerConfig.ssmParameters.appId),
-      clientSecret: appSecretRef,
+      clientSecret: this.stringParameterValue(providerConfig.ssmParameters.appSecret),
       scopes: ['public_profile', 'email'],
       attributeMapping: socialAttributeMapping,
     });
@@ -275,17 +287,10 @@ export class AuthStack extends cdk.Stack {
       return undefined;
     }
 
-    // Amazon's CDK construct only accepts a string secret, so we route the
-    // SecureString through a CloudFormation dynamic reference. The resolved
-    // secret value never appears in the synthesized template.
-    const clientSecretRef = cdk.SecretValue
-      .ssmSecure(providerConfig.ssmParameters.clientSecret)
-      .unsafeUnwrap();
-
     return new cognito.UserPoolIdentityProviderAmazon(this, 'AmazonProvider', {
       userPool: this.userPool,
       clientId: this.stringParameterValue(providerConfig.ssmParameters.clientId),
-      clientSecret: clientSecretRef,
+      clientSecret: this.stringParameterValue(providerConfig.ssmParameters.clientSecret),
       scopes: ['profile'],
       attributeMapping: {
         email: cognito.ProviderAttribute.other('email'),
@@ -309,7 +314,7 @@ export class AuthStack extends cdk.Stack {
   //     clientId: this.stringParameterValue(providerConfig.ssmParameters.servicesId),
   //     teamId: this.stringParameterValue(providerConfig.ssmParameters.teamId),
   //     keyId: this.stringParameterValue(providerConfig.ssmParameters.keyId),
-  //     privateKeyValue: cdk.SecretValue.ssmSecure(providerConfig.ssmParameters.privateKey),
+  //     privateKeyValue: this.secretParameterValue(providerConfig.ssmParameters.privateKey),
   //     scopes: ['email', 'name'],
   //     attributeMapping: {
   //       email: cognito.ProviderAttribute.other('email'),
