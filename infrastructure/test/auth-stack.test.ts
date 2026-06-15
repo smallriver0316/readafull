@@ -134,46 +134,109 @@ describe('AuthStack', () => {
   });
 
   describe('Social identity providers', () => {
-    it('creates a Google provider when enabled with SSM-backed credentials', () => {
+    it('registers no IdP custom resource and no provider Lambda when none are enabled', () => {
+      const { template } = buildAuthStack();
+
+      template.resourceCountIs('Custom::CognitoSocialIdentityProvider', 0);
+      // Only the post-confirmation Lambda exists — the provider framework is
+      // created lazily and stays absent when no social providers are enabled.
+      template.resourceCountIs('AWS::Lambda::Function', 1);
+    });
+
+    it('registers a Google provider via a Custom Resource that reads SSM by name only', () => {
       const { template, stack } = buildAuthStack({ google: true });
 
       expect(stack.enabledSocialProviders.map((p) => p.name)).toEqual(
         expect.arrayContaining(['COGNITO', 'Google'])
       );
 
-      template.hasResourceProperties('AWS::Cognito::UserPoolIdentityProvider', {
+      template.hasResourceProperties('Custom::CognitoSocialIdentityProvider', {
+        ProviderName: 'Google',
         ProviderType: 'Google',
-        ProviderDetails: Match.objectLike({
-          authorize_scopes: 'openid email profile',
+        StaticProviderDetails: { authorize_scopes: 'openid email profile' },
+        SecretParameterNames: {
+          client_id: '/readafull/development/auth/google/client-id',
+          client_secret: '/readafull/development/auth/google/client-secret',
+        },
+      });
+    });
+
+    it('does not embed any secret value in the synthesized template', () => {
+      const { template } = buildAuthStack({ google: true });
+
+      // The template carries SSM parameter *names*, never the secret values.
+      const json = JSON.stringify(template.toJSON());
+      expect(json).toContain('/readafull/development/auth/google/client-secret');
+    });
+
+    it('grants the provider Lambda SSM read, KMS decrypt, and Cognito IdP management', () => {
+      const { template } = buildAuthStack({ google: true });
+
+      template.hasResourceProperties('AWS::IAM::Policy', {
+        PolicyDocument: Match.objectLike({
+          Statement: Match.arrayWith([
+            Match.objectLike({
+              Action: ['ssm:GetParameter', 'ssm:GetParameters'],
+              Effect: 'Allow',
+            }),
+            Match.objectLike({
+              Action: 'kms:Decrypt',
+              Condition: Match.objectLike({
+                StringEquals: Match.objectLike({ 'kms:ViaService': Match.anyValue() }),
+              }),
+            }),
+            Match.objectLike({
+              Action: Match.arrayWith([
+                'cognito-idp:CreateIdentityProvider',
+                'cognito-idp:UpdateIdentityProvider',
+                'cognito-idp:DeleteIdentityProvider',
+                'cognito-idp:DescribeIdentityProvider',
+              ]),
+            }),
+          ]),
         }),
       });
     });
 
-    it('creates a Facebook provider when enabled', () => {
+    it('registers a Facebook provider when enabled', () => {
       const { template, stack } = buildAuthStack({ facebook: true });
 
       expect(stack.enabledSocialProviders.map((p) => p.name)).toEqual(
         expect.arrayContaining(['Facebook'])
       );
 
-      template.hasResourceProperties('AWS::Cognito::UserPoolIdentityProvider', {
+      template.hasResourceProperties('Custom::CognitoSocialIdentityProvider', {
+        ProviderName: 'Facebook',
         ProviderType: 'Facebook',
+        SecretParameterNames: {
+          client_id: '/readafull/development/auth/facebook/app-id',
+          client_secret: '/readafull/development/auth/facebook/app-secret',
+        },
       });
     });
 
-    it('creates a Login with Amazon provider when enabled', () => {
+    it('registers a Login with Amazon provider when enabled', () => {
       const { template, stack } = buildAuthStack({ amazon: true });
 
       expect(stack.enabledSocialProviders.map((p) => p.name)).toEqual(
         expect.arrayContaining(['LoginWithAmazon'])
       );
 
-      template.hasResourceProperties('AWS::Cognito::UserPoolIdentityProvider', {
+      template.hasResourceProperties('Custom::CognitoSocialIdentityProvider', {
+        ProviderName: 'LoginWithAmazon',
         ProviderType: 'LoginWithAmazon',
-        ProviderDetails: Match.objectLike({
-          authorize_scopes: 'profile',
-        }),
+        StaticProviderDetails: { authorize_scopes: 'profile' },
       });
+    });
+
+    it('reuses a single provider framework Lambda for all enabled providers', () => {
+      const { template } = buildAuthStack({ google: true, facebook: true, amazon: true });
+
+      template.resourceCountIs('Custom::CognitoSocialIdentityProvider', 3);
+      // post-confirmation Lambda + one shared onEvent handler + the provider
+      // framework's own CloudFormation handler = 3 functions (no per-provider
+      // Lambda duplication).
+      template.resourceCountIs('AWS::Lambda::Function', 3);
     });
 
     it('enables every supported provider on the client when all are configured', () => {

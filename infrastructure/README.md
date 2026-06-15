@@ -111,6 +111,8 @@ Environment-specific configurations are located in `config/environment.ts`. Each
 
 Lambda function code is organized in the `lambda/` directory:
 
+- `auth-triggers/` - Cognito triggers (e.g. post-confirmation profile creation)
+- `custom-resources/` - CloudFormation Custom Resource handlers (e.g. social IdP registration)
 - `text-generation/` - Bedrock text generation service
 - `translation/` - Amazon Translate integration
 - `tts-generation/` - Amazon Polly TTS service
@@ -149,15 +151,19 @@ infrastructure/
 
 ## Social Login Configuration
 
-Social identity providers (Google, Facebook, Login with Amazon) are managed by CDK using credentials stored in AWS Systems Manager Parameter Store. The synthesized CloudFormation template only contains parameter references (`{{resolve:ssm:...}}` or `AWS::SSM::Parameter::Value<String>` CFN parameter refs), so secret values never appear in the template or stack events.
+Social identity providers (Google, Facebook, Login with Amazon) are managed by CDK using credentials stored in AWS Systems Manager Parameter Store. Each provider is registered by a **Lambda-backed Custom Resource** (`lambda/custom-resources/socialIdpProvider.ts`) that reads the credentials via the AWS SDK at deploy time and calls the Cognito `CreateIdentityProvider` / `UpdateIdentityProvider` / `DeleteIdentityProvider` APIs directly. The synthesized CloudFormation template only contains the SSM parameter **names** — neither the secret values nor any `{{resolve:...}}` reference to them appears in the template or stack events.
 
-> ⚠️ **SecureString is NOT used.** CloudFormation does not support the `{{resolve:ssm-secure:...}}` dynamic reference for `AWS::Cognito::UserPoolIdentityProvider/ProviderDetails/client_secret`, so we register every SSM parameter — including client secrets — as plain `String`. This means client secrets are stored **unencrypted at rest** in SSM Parameter Store (IAM still controls access). This is acceptable for development. **Before production deployment** we will switch to a Lambda-backed Custom Resource that reads SecureString via the SDK and configures the IdP directly — tracked as a follow-up. See [issue / branch](../README.md) when that lands.
+> ✅ **Client secrets are stored as `SecureString` (encrypted at rest).** CloudFormation does not support the `{{resolve:ssm-secure:...}}` dynamic reference for `AWS::Cognito::UserPoolIdentityProvider/ProviderDetails/client_secret`, which previously forced us to store secrets as plain `String`. The Custom Resource works around that limitation: it fetches each parameter with `WithDecryption: true`, so secrets can — and should — be registered as `SecureString`. The provider Lambda's IAM role is scoped to `ssm:GetParameter*` on `/readafull/<env>/auth/*`, `kms:Decrypt` via the SSM service only, and the four `cognito-idp:*IdentityProvider` actions on this user pool.
+>
+> **Non-secret IDs** (`client-id`, `app-id`) may stay as `String` — they are public. `WithDecryption: true` is a no-op for `String` parameters, so either type works.
+>
+> **Rotating a secret:** update the SSM value, then redeploy. The Custom Resource re-runs and applies the latest decrypted value whenever its CloudFormation properties change (e.g. on any stack update touching the Auth stack). To force a refresh without other changes, run `cdk deploy` after bumping the parameter — the handler always performs an upsert with the freshly fetched value.
 
 > **Apple Sign-In is temporarily disabled** because the Apple Developer Program requires a paid membership. The Apple-related infrastructure code, env flag (`READAFULL_AUTH_APPLE_ENABLED`), and SSM parameter paths are kept commented out in the codebase. When the Developer Program enrollment is complete, restore them in `infrastructure/config/environment.ts`, `infrastructure/lib/auth-stack.ts`, `infrastructure/test/auth-stack.test.ts`, and the commented section of this README.
 
 ### 1. Store credentials in SSM Parameter Store
 
-For each environment (`development` / `staging` / `production`), register the parameters below. **All parameters use `String` type (NOT `SecureString`)** — see the warning above.
+For each environment (`development` / `staging` / `production`), register the parameters below. **Secrets use `SecureString`; public IDs use `String`** — see the note above.
 
 ```bash
 ENV=development  # or staging | production
@@ -166,19 +172,19 @@ ENV=development  # or staging | production
 aws ssm put-parameter --name "/readafull/$ENV/auth/google/client-id" \
   --type String --value "<google-oauth-client-id>"
 aws ssm put-parameter --name "/readafull/$ENV/auth/google/client-secret" \
-  --type String --value "<google-oauth-client-secret>"
+  --type SecureString --value "<google-oauth-client-secret>"
 
 # Facebook
 aws ssm put-parameter --name "/readafull/$ENV/auth/facebook/app-id" \
   --type String --value "<facebook-app-id>"
 aws ssm put-parameter --name "/readafull/$ENV/auth/facebook/app-secret" \
-  --type String --value "<facebook-app-secret>"
+  --type SecureString --value "<facebook-app-secret>"
 
 # Login with Amazon
 aws ssm put-parameter --name "/readafull/$ENV/auth/amazon/client-id" \
   --type String --value "<amazon-lwa-client-id>"
 aws ssm put-parameter --name "/readafull/$ENV/auth/amazon/client-secret" \
-  --type String --value "<amazon-lwa-client-secret>"
+  --type SecureString --value "<amazon-lwa-client-secret>"
 
 # Apple (DEFERRED — requires paid Apple Developer Program enrollment)
 # aws ssm put-parameter --name "/readafull/$ENV/auth/apple/services-id" \
@@ -188,15 +194,16 @@ aws ssm put-parameter --name "/readafull/$ENV/auth/amazon/client-secret" \
 # aws ssm put-parameter --name "/readafull/$ENV/auth/apple/key-id" \
 #   --type String --value "<apple-key-id>"
 # aws ssm put-parameter --name "/readafull/$ENV/auth/apple/private-key" \
-#   --type String --value "$(cat AuthKey_XXXX.p8)"
+#   --type SecureString --value "$(cat AuthKey_XXXX.p8)"
 ```
 
-> **Migrating from a previous SecureString registration?** If you already registered parameters as `SecureString` (per an earlier version of this README), delete them first and re-register as `String`:
+> **Migrating from a previous `String` registration?** SSM does **not** allow changing an existing parameter's type with `--overwrite`, so delete the plain-`String` secrets first, then recreate them as `SecureString`:
 > ```bash
-> aws ssm delete-parameter --name "/readafull/$ENV/auth/google/client-secret"
-> aws ssm delete-parameter --name "/readafull/$ENV/auth/facebook/app-secret"
-> aws ssm delete-parameter --name "/readafull/$ENV/auth/amazon/client-secret"
-> # then re-run the put-parameter commands above
+> aws ssm delete-parameters --names \
+>   "/readafull/$ENV/auth/google/client-secret" \
+>   "/readafull/$ENV/auth/facebook/app-secret" \
+>   "/readafull/$ENV/auth/amazon/client-secret"
+> # then re-run the SecureString put-parameter commands above
 > ```
 
 ### 2. Opt-in providers at deploy time
