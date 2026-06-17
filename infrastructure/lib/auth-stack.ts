@@ -2,8 +2,9 @@ import * as path from 'path';
 import * as cdk from 'aws-cdk-lib';
 import * as cognito from 'aws-cdk-lib/aws-cognito';
 import * as dynamodb from 'aws-cdk-lib/aws-dynamodb';
+import * as iam from 'aws-cdk-lib/aws-iam';
 import * as lambda from 'aws-cdk-lib/aws-lambda';
-import * as ssm from 'aws-cdk-lib/aws-ssm';
+import * as cr from 'aws-cdk-lib/custom-resources';
 import { NodejsFunction } from 'aws-cdk-lib/aws-lambda-nodejs';
 import { Construct } from 'constructs';
 import {
@@ -18,12 +19,21 @@ interface AuthStackProps extends cdk.StackProps {
   mainTable: dynamodb.Table;
 }
 
-const socialAttributeMapping: cognito.AttributeMapping = {
-  email: cognito.ProviderAttribute.other('email'),
-  givenName: cognito.ProviderAttribute.other('given_name'),
-  familyName: cognito.ProviderAttribute.other('family_name'),
-  fullname: cognito.ProviderAttribute.other('name'),
-  profilePicture: cognito.ProviderAttribute.other('picture'),
+// Cognito AttributeMapping in raw API form (user-pool attribute -> provider
+// attribute). The social-IdP Custom Resource configures providers via the
+// Cognito SDK, so it needs the plain string map rather than the CDK L2
+// `ProviderAttribute` wrappers.
+const socialAttributeMapping: Record<string, string> = {
+  email: 'email',
+  given_name: 'given_name',
+  family_name: 'family_name',
+  name: 'name',
+  picture: 'picture',
+};
+
+const amazonAttributeMapping: Record<string, string> = {
+  email: 'email',
+  name: 'name',
 };
 
 export class AuthStack extends cdk.Stack {
@@ -32,6 +42,12 @@ export class AuthStack extends cdk.Stack {
   public readonly userPoolDomain: cognito.UserPoolDomain;
   public readonly postConfirmationFunction: NodejsFunction;
   public readonly enabledSocialProviders: cognito.UserPoolClientIdentityProvider[];
+
+  // Custom resources that register each social IdP via the Cognito SDK. The
+  // User Pool Client must deploy after these so it never advertises a provider
+  // that does not yet exist on the pool.
+  private readonly socialIdpResources: cdk.CustomResource[] = [];
+  private socialIdpProviderFramework?: cr.Provider;
 
   constructor(
     scope: Construct,
@@ -120,37 +136,66 @@ export class AuthStack extends cdk.Stack {
     });
 
     // Configure social identity providers from SSM Parameter Store values.
-    // Providers stay opt-in via environment flag so missing SSM parameters
-    // don't break development deploys.
+    // Each provider is registered by a Lambda-backed Custom Resource that reads
+    // the credentials (incl. SecureString secrets) via the SDK at deploy time,
+    // so secrets never need to be stored as plain `String`. Providers stay
+    // opt-in via environment flag so missing SSM parameters don't break
+    // development deploys.
     this.enabledSocialProviders = [cognito.UserPoolClientIdentityProvider.COGNITO];
 
-    const providerDependencies: cognito.UserPoolIdentityProvider[] = [];
-
-    const googleProvider = this.maybeAddGoogleProvider(config.cognito.socialProviders.google);
+    const googleProvider = this.maybeAddSocialProvider(config, {
+      id: 'GoogleProvider',
+      provider: cognito.UserPoolClientIdentityProvider.GOOGLE,
+      providerConfig: config.cognito.socialProviders.google,
+      secretParameterNames: {
+        client_id: config.cognito.socialProviders.google.ssmParameters.clientId,
+        client_secret: config.cognito.socialProviders.google.ssmParameters.clientSecret,
+      },
+      staticProviderDetails: { authorize_scopes: 'openid email profile' },
+      attributeMapping: socialAttributeMapping,
+    });
     if (googleProvider) {
-      providerDependencies.push(googleProvider);
-      this.enabledSocialProviders.push(cognito.UserPoolClientIdentityProvider.GOOGLE);
+      this.enabledSocialProviders.push(googleProvider);
     }
 
-    const facebookProvider = this.maybeAddFacebookProvider(config.cognito.socialProviders.facebook);
+    const facebookProvider = this.maybeAddSocialProvider(config, {
+      id: 'FacebookProvider',
+      provider: cognito.UserPoolClientIdentityProvider.FACEBOOK,
+      providerConfig: config.cognito.socialProviders.facebook,
+      secretParameterNames: {
+        client_id: config.cognito.socialProviders.facebook.ssmParameters.appId,
+        client_secret: config.cognito.socialProviders.facebook.ssmParameters.appSecret,
+      },
+      staticProviderDetails: { authorize_scopes: 'public_profile email' },
+      attributeMapping: socialAttributeMapping,
+    });
     if (facebookProvider) {
-      providerDependencies.push(facebookProvider);
-      this.enabledSocialProviders.push(cognito.UserPoolClientIdentityProvider.FACEBOOK);
+      this.enabledSocialProviders.push(facebookProvider);
     }
 
-    const amazonProvider = this.maybeAddAmazonProvider(config.cognito.socialProviders.amazon);
+    const amazonProvider = this.maybeAddSocialProvider(config, {
+      id: 'AmazonProvider',
+      provider: cognito.UserPoolClientIdentityProvider.AMAZON,
+      providerConfig: config.cognito.socialProviders.amazon,
+      secretParameterNames: {
+        client_id: config.cognito.socialProviders.amazon.ssmParameters.clientId,
+        client_secret: config.cognito.socialProviders.amazon.ssmParameters.clientSecret,
+      },
+      staticProviderDetails: { authorize_scopes: 'profile' },
+      attributeMapping: amazonAttributeMapping,
+    });
     if (amazonProvider) {
-      providerDependencies.push(amazonProvider);
-      this.enabledSocialProviders.push(cognito.UserPoolClientIdentityProvider.AMAZON);
+      this.enabledSocialProviders.push(amazonProvider);
     }
 
     // Apple is temporarily disabled — Apple Developer Program requires a paid
-    // membership. Uncomment together with `maybeAddAppleProvider` below and the
-    // `apple` field in CognitoSocialProvidersConfig when enrollment is in place.
-    // const appleProvider = this.maybeAddAppleProvider(config.cognito.socialProviders.apple);
+    // membership. When enrollment is in place, restore the `apple` field in
+    // CognitoSocialProvidersConfig and add a maybeAddSocialProvider call here
+    // mapping the Apple ProviderDetails keys (client_id/team_id/key_id/
+    // private_key) to their SSM parameter names.
+    // const appleProvider = this.maybeAddSocialProvider(config, { ...apple... });
     // if (appleProvider) {
-    //   providerDependencies.push(appleProvider);
-    //   this.enabledSocialProviders.push(cognito.UserPoolClientIdentityProvider.APPLE);
+    //   this.enabledSocialProviders.push(appleProvider);
     // }
 
     // Hosted UI domain — required when using federated sign-in.
@@ -188,10 +233,9 @@ export class AuthStack extends cdk.Stack {
     });
 
     // The client must be deployed after all configured IdPs exist, otherwise
-    // CloudFormation may try to attach the client to providers that do not yet
-    // exist on the user pool.
-    for (const provider of providerDependencies) {
-      this.userPoolClient.node.addDependency(provider);
+    // it may advertise a provider the Custom Resource has not registered yet.
+    for (const resource of this.socialIdpResources) {
+      this.userPoolClient.node.addDependency(resource);
     }
 
     // Output important values
@@ -225,101 +269,113 @@ export class AuthStack extends cdk.Stack {
     });
   }
 
-  // All social provider secrets are read from SSM Parameter Store as `String`
-  // (NOT `SecureString`) at deploy time. CloudFormation does not support the
-  // `{{resolve:ssm-secure:...}}` dynamic reference for
-  // `AWS::Cognito::UserPoolIdentityProvider/ProviderDetails/client_secret`, so
-  // SecureString cannot be used here without a Custom Resource workaround.
-  //
-  // The trade-off is that the secret is stored unencrypted at rest in SSM
-  // (IAM still gates access, and the value never appears in CFN templates
-  // because we go through CFN-resolved SSM Parameter references). This is
-  // acceptable for development; production should switch to a Custom Resource
-  // that reads SecureString via the SDK and configures the IdP directly.
-  // See infrastructure/README.md "Social Login Configuration".
-  private stringParameterValue(parameterName: string): string {
-    return ssm.StringParameter.valueForStringParameter(this, parameterName);
-  }
-
-  private secretParameterValue(parameterName: string): cdk.SecretValue {
-    // `unsafePlainText` simply wraps the CDK token (which resolves to a CFN
-    // `Ref` of an SSM Parameter at deploy time) into a SecretValue, so the
-    // synthesized template still contains only a reference, not the secret.
-    return cdk.SecretValue.unsafePlainText(this.stringParameterValue(parameterName));
-  }
-
-  private maybeAddGoogleProvider(
-    providerConfig: SocialProviderConfig
-  ): cognito.UserPoolIdentityProviderGoogle | undefined {
-    if (!providerConfig.enabled) {
-      return undefined;
+  // Lazily create the shared Custom Resource provider framework (a single
+  // onEvent Lambda) the first time a social IdP is enabled. The Lambda reads
+  // each provider's credentials from SSM Parameter Store with decryption, so
+  // client secrets can be stored as `SecureString` (encrypted at rest) instead
+  // of plain `String`. The decrypted values never appear in the CloudFormation
+  // template or stack events — only the SSM parameter *names* are passed in.
+  private getSocialIdpProviderFramework(config: EnvironmentConfig): cr.Provider {
+    if (this.socialIdpProviderFramework) {
+      return this.socialIdpProviderFramework;
     }
 
-    return new cognito.UserPoolIdentityProviderGoogle(this, 'GoogleProvider', {
-      userPool: this.userPool,
-      clientId: this.stringParameterValue(providerConfig.ssmParameters.clientId),
-      clientSecretValue: this.secretParameterValue(providerConfig.ssmParameters.clientSecret),
-      scopes: ['openid', 'email', 'profile'],
-      attributeMapping: socialAttributeMapping,
+    const onEventHandler = new NodejsFunction(this, 'SocialIdpOnEventFunction', {
+      functionName: `${config.stackPrefix}-social-idp-cr`,
+      runtime: LAMBDA_NODE_RUNTIME,
+      architecture: LAMBDA_ARCHITECTURE,
+      entry: path.join(__dirname, '..', 'lambda', 'custom-resources', 'socialIdpProvider.ts'),
+      handler: 'handler',
+      memorySize: 256,
+      timeout: cdk.Duration.seconds(30),
+      bundling: {
+        target: LAMBDA_BUNDLING_NODE_TARGET,
+        minify: true,
+        sourceMap: true,
+        externalModules: ['@aws-sdk/*'],
+      },
+      tracing: config.monitoring.enableXRay ? lambda.Tracing.ACTIVE : lambda.Tracing.DISABLED,
     });
-  }
 
-  private maybeAddFacebookProvider(
-    providerConfig: SocialProviderConfig
-  ): cognito.UserPoolIdentityProviderFacebook | undefined {
-    if (!providerConfig.enabled) {
-      return undefined;
-    }
+    // Read social provider credentials, including SecureString secrets, scoped
+    // to this environment's auth parameter path.
+    onEventHandler.addToRolePolicy(
+      new iam.PolicyStatement({
+        actions: ['ssm:GetParameter', 'ssm:GetParameters'],
+        resources: [
+          `arn:${this.partition}:ssm:${this.region}:${this.account}:parameter/readafull/${config.environment}/auth/*`,
+        ],
+      })
+    );
 
-    return new cognito.UserPoolIdentityProviderFacebook(this, 'FacebookProvider', {
-      userPool: this.userPool,
-      clientId: this.stringParameterValue(providerConfig.ssmParameters.appId),
-      clientSecret: this.stringParameterValue(providerConfig.ssmParameters.appSecret),
-      scopes: ['public_profile', 'email'],
-      attributeMapping: socialAttributeMapping,
+    // Decrypt SecureString values. Restricting to the SSM service prevents the
+    // role from decrypting arbitrary ciphertext outside Parameter Store and
+    // works for both the AWS-managed `aws/ssm` key and a customer-managed key.
+    onEventHandler.addToRolePolicy(
+      new iam.PolicyStatement({
+        actions: ['kms:Decrypt'],
+        resources: ['*'],
+        conditions: {
+          StringEquals: { 'kms:ViaService': `ssm.${this.region}.amazonaws.com` },
+        },
+      })
+    );
+
+    // Manage identity providers on this user pool only.
+    onEventHandler.addToRolePolicy(
+      new iam.PolicyStatement({
+        actions: [
+          'cognito-idp:CreateIdentityProvider',
+          'cognito-idp:UpdateIdentityProvider',
+          'cognito-idp:DeleteIdentityProvider',
+          'cognito-idp:DescribeIdentityProvider',
+        ],
+        resources: [this.userPool.userPoolArn],
+      })
+    );
+
+    this.socialIdpProviderFramework = new cr.Provider(this, 'SocialIdpProviderFramework', {
+      onEventHandler,
     });
+    return this.socialIdpProviderFramework;
   }
 
-  private maybeAddAmazonProvider(
-    providerConfig: SocialProviderConfig
-  ): cognito.UserPoolIdentityProviderAmazon | undefined {
-    if (!providerConfig.enabled) {
+  // Register one social identity provider through the Custom Resource, unless
+  // it is disabled by its environment flag. Returns the matching client
+  // identity-provider enum so the caller can advertise it on the User Pool
+  // Client, or `undefined` when the provider is not enabled.
+  private maybeAddSocialProvider(
+    config: EnvironmentConfig,
+    options: {
+      id: string;
+      provider: cognito.UserPoolClientIdentityProvider;
+      providerConfig: SocialProviderConfig;
+      secretParameterNames: Record<string, string>;
+      staticProviderDetails: Record<string, string>;
+      attributeMapping: Record<string, string>;
+    }
+  ): cognito.UserPoolClientIdentityProvider | undefined {
+    if (!options.providerConfig.enabled) {
       return undefined;
     }
 
-    return new cognito.UserPoolIdentityProviderAmazon(this, 'AmazonProvider', {
-      userPool: this.userPool,
-      clientId: this.stringParameterValue(providerConfig.ssmParameters.clientId),
-      clientSecret: this.stringParameterValue(providerConfig.ssmParameters.clientSecret),
-      scopes: ['profile'],
-      attributeMapping: {
-        email: cognito.ProviderAttribute.other('email'),
-        fullname: cognito.ProviderAttribute.other('name'),
+    const framework = this.getSocialIdpProviderFramework(config);
+
+    const resource = new cdk.CustomResource(this, options.id, {
+      serviceToken: framework.serviceToken,
+      resourceType: 'Custom::CognitoSocialIdentityProvider',
+      properties: {
+        UserPoolId: this.userPool.userPoolId,
+        ProviderName: options.provider.name,
+        ProviderType: options.provider.name,
+        SecretParameterNames: options.secretParameterNames,
+        StaticProviderDetails: options.staticProviderDetails,
+        AttributeMapping: options.attributeMapping,
       },
     });
-  }
+    resource.node.addDependency(this.userPool);
 
-  // Apple is temporarily disabled — Apple Developer Program requires a paid
-  // membership. Restore this method together with the call site above and the
-  // `apple` field in CognitoSocialProvidersConfig when enrollment is in place.
-  // private maybeAddAppleProvider(
-  //   providerConfig: SocialProviderConfig
-  // ): cognito.UserPoolIdentityProviderApple | undefined {
-  //   if (!providerConfig.enabled) {
-  //     return undefined;
-  //   }
-  //
-  //   return new cognito.UserPoolIdentityProviderApple(this, 'AppleProvider', {
-  //     userPool: this.userPool,
-  //     clientId: this.stringParameterValue(providerConfig.ssmParameters.servicesId),
-  //     teamId: this.stringParameterValue(providerConfig.ssmParameters.teamId),
-  //     keyId: this.stringParameterValue(providerConfig.ssmParameters.keyId),
-  //     privateKeyValue: this.secretParameterValue(providerConfig.ssmParameters.privateKey),
-  //     scopes: ['email', 'name'],
-  //     attributeMapping: {
-  //       email: cognito.ProviderAttribute.other('email'),
-  //       fullname: cognito.ProviderAttribute.other('name'),
-  //     },
-  //   });
-  // }
+    this.socialIdpResources.push(resource);
+    return options.provider;
+  }
 }
