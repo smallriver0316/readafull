@@ -97,15 +97,26 @@ interface BedrockTextService {
 
 ### 2. Amazon Polly - Text-to-Speech
 
-```typescript
-interface PollyTTSService {
-  generateSpeech(text: string, voiceId?: string): Promise<AudioBuffer>
+The voice is selected from the text's `learningLanguage` so the same service
+works for any target language, not only English.
 
-  async generateSpeech(text: string): Promise<AudioBuffer> {
+```typescript
+// Maps a learning-language code to a Polly neural voice.
+const VOICE_BY_LANGUAGE: Record<string, string> = {
+  en: 'Joanna',
+  ja: 'Kazuha',
+  ko: 'Seoyeon',
+  // ...extend as new learning languages are supported
+};
+
+interface PollyTTSService {
+  generateSpeech(text: string, learningLanguage: string): Promise<AudioBuffer>
+
+  async generateSpeech(text: string, learningLanguage: string): Promise<AudioBuffer> {
     const params = {
       Text: text,
       OutputFormat: 'mp3',
-      VoiceId: 'Joanna', // English voice
+      VoiceId: VOICE_BY_LANGUAGE[learningLanguage] ?? 'Joanna',
       Engine: 'neural'
     };
 
@@ -115,17 +126,22 @@ interface PollyTTSService {
 }
 ```
 
-### 3. Amazon Translate - Japanese Translation
+### 3. Amazon Translate - Translation
+
+Translation is parameterised on the language pair. The source is the learner's
+target language (`learningLanguage`) and the destination is their native
+language (`nativeLanguage`), so a Japanese learner of English and a Korean
+learner of English are both served by the same code path.
 
 ```typescript
 interface TranslateService {
-  translateToJapanese(englishText: string): Promise<string>
+  translate(text: string, sourceLanguage: string, targetLanguage: string): Promise<string>
 
-  async translateToJapanese(text: string): Promise<string> {
+  async translate(text: string, sourceLanguage: string, targetLanguage: string): Promise<string> {
     const params = {
       Text: text,
-      SourceLanguageCode: 'en',
-      TargetLanguageCode: 'ja'
+      SourceLanguageCode: sourceLanguage, // e.g. learningLanguage: 'en'
+      TargetLanguageCode: targetLanguage  // e.g. nativeLanguage:  'ja'
     };
 
     const response = await translate.translateText(params);
@@ -164,13 +180,17 @@ interface S3AudioService {
 interface TextContentTable {
   PK: string; // USER#userId
   SK: string; // TEXT#textId
-  englishText: string;
-  japaneseTranslation: string;
+  learningLanguage: string; // BCP-47 code the learner is studying, e.g. "en"
+  nativeLanguage: string;   // BCP-47 code to translate into, e.g. "ja"
+  content: string;          // the passage in learningLanguage
+  translation: string;      // content translated into nativeLanguage
   difficulty: string;
   wordCount: number;
   createdAt: string;
   lastAccessedAt: string;
-  GSI1PK: string; // DIFFICULTY#level
+  // Language-pair-aware index so texts for different learning/native pairs
+  // never mix when surfacing reusable content by difficulty.
+  GSI1PK: string; // LANG#<learning>#NATIVE#<native>#DIFF#<level>
   GSI1SK: string; // CREATED#timestamp
 }
 
@@ -196,16 +216,25 @@ export const handler = async (event: APIGatewayProxyEvent) => {
   const userId = event.requestContext.authorizer.claims.sub;
 
   try {
-    // Generate text using Bedrock
-    const generatedText = await bedrockService.generateText(difficulty, topic);
+    // Resolve the user's language pair from their preferences.
+    const { learningLanguage, nativeLanguage } = await userService.getLanguagePreferences(userId);
 
-    // Translate to Japanese
-    const translation = await translateService.translateToJapanese(generatedText.content);
+    // Generate text in the learning language using Bedrock
+    const generatedText = await bedrockService.generateText(difficulty, learningLanguage, topic);
+
+    // Translate into the user's native language
+    const translation = await translateService.translate(
+      generatedText.content,
+      learningLanguage,
+      nativeLanguage
+    );
 
     // Save to DynamoDB
     const textRecord = {
       ...generatedText,
-      japaneseTranslation: translation,
+      learningLanguage,
+      nativeLanguage,
+      translation,
       userId
     };
     await dynamoService.saveText(textRecord);
@@ -274,8 +303,11 @@ export const handler = async (event: APIGatewayProxyEvent) => {
       await cacheService.setTextCache(textId, textRecord);
     }
 
-    // Generate TTS audio
-    const audioBuffer = await pollyService.generateSpeech(textRecord.englishText);
+    // Generate TTS audio in the text's learning language
+    const audioBuffer = await pollyService.generateSpeech(
+      textRecord.content,
+      textRecord.learningLanguage
+    );
 
     // Upload to S3
     const s3Key = await s3Service.uploadTTSAudio(audioBuffer, userId, textId);
@@ -364,6 +396,8 @@ export const postConfirmationHandler = async (event: CognitoUserPoolTriggerEvent
       profilePicture: profilePicture || null,
       provider,
       preferences: {
+        learningLanguage: 'en', // target language the user is studying
+        nativeLanguage: 'ja',   // language used for translations
         defaultDifficulty: 'beginner',
         showTranslationByDefault: true,
         audioQuality: 'medium',
@@ -417,7 +451,8 @@ interface MainTableItem {
 // Access Patterns:
 // 1. Get user texts: PK = USER#userId, SK begins_with TEXT#
 // 2. Get user audio: PK = USER#userId, SK begins_with AUDIO#
-// 3. Get texts by difficulty: GSI1PK = DIFFICULTY#level, GSI1SK = CREATED#timestamp
+// 3. Get reusable texts by language pair + difficulty:
+//    GSI1PK = LANG#<learning>#NATIVE#<native>#DIFF#<level>, GSI1SK = CREATED#timestamp
 // 4. Get user preferences: PK = USER#userId, SK = PREFERENCE#settings
 ```
 

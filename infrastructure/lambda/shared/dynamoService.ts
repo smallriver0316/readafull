@@ -31,7 +31,7 @@ import {
   TEXT_SK_PREFIX,
   audioSk,
   createdGsiSk,
-  difficultyGsiPk,
+  textGsiPk,
   profileSk,
   textSk,
   userPk,
@@ -177,7 +177,11 @@ export class DynamoService {
         Item: {
           PK: userPk(text.userId),
           SK: textSk(text.textId),
-          GSI1PK: difficultyGsiPk(text.difficulty),
+          GSI1PK: textGsiPk(
+            text.learningLanguage,
+            text.nativeLanguage,
+            text.difficulty
+          ),
           GSI1SK: createdGsiSk(text.createdAt),
           entityType: 'TEXT' satisfies EntityType,
           ...text,
@@ -222,10 +226,14 @@ export class DynamoService {
   }
 
   /**
-   * List texts of a given difficulty across all users, newest first, via GSI1.
-   * Used to surface previously generated content for reuse.
+   * List reusable texts for a language pair and difficulty across all users,
+   * newest first, via GSI1. Used to surface previously generated content for
+   * reuse; scoping by language pair keeps, e.g., English-for-Japanese texts
+   * separate from English-for-Korean ones.
    */
-  async listTextsByDifficulty(
+  async listTextsByLanguageAndDifficulty(
+    learningLanguage: string,
+    nativeLanguage: string,
     difficulty: string,
     options: { limit?: number } = {}
   ): Promise<TextContent[]> {
@@ -235,7 +243,7 @@ export class DynamoService {
         IndexName: 'GSI1',
         KeyConditionExpression: 'GSI1PK = :pk',
         ExpressionAttributeValues: {
-          ':pk': difficultyGsiPk(difficulty),
+          ':pk': textGsiPk(learningLanguage, nativeLanguage, difficulty),
         },
         ScanIndexForward: false,
         Limit: options.limit,

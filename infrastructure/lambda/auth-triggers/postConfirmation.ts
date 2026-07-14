@@ -36,6 +36,8 @@ const parseProvider = (identitiesAttr?: string): string => {
 };
 
 const defaultPreferences = {
+  learningLanguage: 'en',
+  nativeLanguage: 'ja',
   defaultDifficulty: 'beginner',
   showTranslationByDefault: true,
   audioQuality: 'medium',
