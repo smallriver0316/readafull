@@ -168,8 +168,10 @@ describe('DynamoService', () => {
   describe('text content', () => {
     const textInput = {
       userId: 'user-1',
-      englishText: 'Hello world.',
-      japaneseTranslation: 'こんにちは世界。',
+      learningLanguage: 'en',
+      nativeLanguage: 'ja',
+      content: 'Hello world.',
+      translation: 'こんにちは世界。',
       difficulty: 'beginner' as const,
       topic: 'greetings',
       wordCount: 2,
@@ -187,10 +189,10 @@ describe('DynamoService', () => {
       expect(input.Item).toMatchObject({
         PK: 'USER#user-1',
         SK: `TEXT#${saved.textId}`,
-        GSI1PK: 'DIFFICULTY#beginner',
+        GSI1PK: 'LANG#en#NATIVE#ja#DIFF#beginner',
         GSI1SK: `CREATED#${saved.createdAt}`,
         entityType: 'TEXT',
-        englishText: 'Hello world.',
+        content: 'Hello world.',
       });
     });
 
@@ -209,17 +211,17 @@ describe('DynamoService', () => {
         Item: {
           PK: 'USER#user-1',
           SK: 'TEXT#t1',
-          GSI1PK: 'DIFFICULTY#beginner',
+          GSI1PK: 'LANG#en#NATIVE#ja#DIFF#beginner',
           GSI1SK: 'CREATED#2026-01-01T00:00:00.000Z',
           entityType: 'TEXT',
           userId: 'user-1',
           textId: 't1',
-          englishText: 'Hi.',
+          content: 'Hi.',
         },
       });
 
       const text = await buildService().getText('user-1', 't1');
-      expect(text).toMatchObject({ textId: 't1', englishText: 'Hi.' });
+      expect(text).toMatchObject({ textId: 't1', content: 'Hi.' });
       expect(text).not.toHaveProperty('GSI1PK');
     });
 
@@ -246,16 +248,20 @@ describe('DynamoService', () => {
       expect(input.Limit).toBe(10);
     });
 
-    it('lists texts by difficulty via GSI1', async () => {
+    it('lists texts by language pair and difficulty via GSI1', async () => {
       ddbMock.on(QueryCommand).resolves({ Items: [] });
 
-      await buildService().listTextsByDifficulty('intermediate');
+      await buildService().listTextsByLanguageAndDifficulty(
+        'en',
+        'ja',
+        'intermediate'
+      );
 
       const input = lastInput(QueryCommand);
       expect(input.IndexName).toBe('GSI1');
       expect(input.KeyConditionExpression).toBe('GSI1PK = :pk');
       expect(input.ExpressionAttributeValues[':pk']).toBe(
-        'DIFFICULTY#intermediate'
+        'LANG#en#NATIVE#ja#DIFF#intermediate'
       );
     });
 
